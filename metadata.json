@@ -1,0 +1,5 @@
+{
+  "name": "EcoProduction Tracker",
+  "description": "Application mobile-first de suivi des déchets de production avec tableaux de bord, gestion des shifts et rôles admin/viewer.",
+  "requestFramePermissions": []
+}
