@@ -6,7 +6,7 @@ import { exportToCSV, exportToJSON } from './utils/export';
 import Layout from './components/Layout';
 import StatsCards from './components/StatsCards';
 import ChartsSection from './components/ChartsSection';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -14,6 +14,15 @@ import {
   onAuthStateChanged,
   User
 } from 'firebase/auth';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  getDocs, 
+  query, 
+  where,
+  writeBatch
+} from 'firebase/firestore';
 import { 
   ChevronRightIcon, 
   ArrowPathIcon, 
@@ -44,20 +53,10 @@ const MOCK_POSTES: Poste[] = [
   { id: '16', nom: 'Batteries Montage / Assemblage', objectif_dechet_percent: 1.5, actif: true },
 ];
 
-const MOCK_ENTRIES: DailyEntry[] = MOCK_POSTES.map(p => ({
-  date: new Date().toISOString().split('T')[0],
-  poste_id: p.id,
-  s1_dechets: Math.floor(Math.random() * 50),
-  s1_produit: 2000 + Math.floor(Math.random() * 500),
-  s2_dechets: Math.floor(Math.random() * 40),
-  s2_produit: 1800 + Math.floor(Math.random() * 400),
-  s3_dechets: Math.floor(Math.random() * 60),
-  s3_produit: 2100 + Math.floor(Math.random() * 600),
-}));
-
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   
@@ -68,9 +67,10 @@ const App: React.FC = () => {
   const [filterPosteId, setFilterPosteId] = useState('all');
   
   const [postes] = useState<Poste[]>(MOCK_POSTES);
-  const [entries, setEntries] = useState<DailyEntry[]>(MOCK_ENTRIES);
+  const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [computed, setComputed] = useState<ComputedEntry[]>([]);
 
+  // Initial load or user change
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -79,6 +79,46 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Fetch data from Firestore when date changes
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const q = query(collection(db, "daily_entries"), where("date", "==", selectedDate));
+        const querySnapshot = await getDocs(q);
+        const fetchedEntries: DailyEntry[] = [];
+        querySnapshot.forEach((doc) => {
+          fetchedEntries.push(doc.data() as DailyEntry);
+        });
+
+        // Initialize missing postes with zero values
+        const fullEntries = postes.map(p => {
+          const existing = fetchedEntries.find(e => e.poste_id === p.id);
+          return existing || {
+            date: selectedDate,
+            poste_id: p.id,
+            s1_dechets: 0,
+            s1_produit: 0,
+            s2_dechets: 0,
+            s2_produit: 0,
+            s3_dechets: 0,
+            s3_produit: 0,
+          };
+        });
+        setEntries(fullEntries);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [selectedDate, user, postes]);
+
+  // Re-calculate results whenever entries change
   useEffect(() => {
     const calculated = entries.map(entry => {
       const poste = postes.find(p => p.id === entry.poste_id)!;
@@ -131,6 +171,31 @@ const App: React.FC = () => {
       }
       return entry;
     }));
+  };
+
+  const saveToFirebase = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const batch = writeBatch(db);
+      entries.forEach((entry) => {
+        // Use a composite ID: date_posteId to uniquely identify an entry per day
+        const docId = `${entry.date}_${entry.poste_id}`;
+        const docRef = doc(db, "daily_entries", docId);
+        batch.set(docRef, {
+          ...entry,
+          updated_at: new Date().toISOString(),
+          created_by: user.uid
+        });
+      });
+      await batch.commit();
+      alert("Données sauvegardées avec succès !");
+    } catch (err) {
+      console.error("Error saving data:", err);
+      alert("Erreur lors de la sauvegarde.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const dashboardData = filterPosteId === 'all' 
@@ -189,7 +254,10 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          <button className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-slate-200 transition-all text-sm flex items-center gap-2 hover:bg-black">
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-slate-200 transition-all text-sm flex items-center gap-2 hover:bg-black"
+          >
             <ArrowPathIcon className="w-4 h-4" />
             Actualiser
           </button>
@@ -203,7 +271,7 @@ const App: React.FC = () => {
           {dashboardData.map((item) => (
             <div key={item.poste_id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
               <div className="p-6 pb-2">
-                <h3 className="font-black text-indigo-700 text-lg mb-3 tracking-tight leading-tight min-h-[3rem]">{item.poste_nom}</h3>
+                <h3 className="font-black text-indigo-700 text-lg mb-3 tracking-tight leading-tight min-h-[3rem] text-ellipsis overflow-hidden">{item.poste_nom}</h3>
                 <div className="bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg inline-block shadow-sm shadow-violet-100">
                   Objectif: {item.objectif}%
                 </div>
@@ -370,7 +438,9 @@ const App: React.FC = () => {
                   </span>
                 </div>
                 <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
-                  comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'
+                  comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                  comp?.status === 'attention' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                  'bg-rose-50 text-rose-700 border-rose-100'
                 }`}>
                   {comp?.status}
                 </div>
@@ -381,9 +451,13 @@ const App: React.FC = () => {
       </div>
       
       <div className="mt-8 flex justify-end">
-        <button className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl shadow-indigo-200 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
-          VALIDER & SAUVEGARDER
-          <ChevronRightIcon className="w-5 h-5" />
+        <button 
+          onClick={saveToFirebase}
+          disabled={saving}
+          className={`bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl shadow-indigo-200 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          {saving ? 'SAUVEGARDE EN COURS...' : 'VALIDER & SAUVEGARDER'}
+          {!saving && <ChevronRightIcon className="w-5 h-5" />}
         </button>
       </div>
     </div>
@@ -408,185 +482,4 @@ const App: React.FC = () => {
         <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 text-slate-200">
           <ClockIcon className="w-14 h-14" />
         </div>
-        <h3 className="font-black text-2xl text-slate-800 mb-4 tracking-tight">Synchronisation requise</h3>
-        <p className="text-slate-400 max-w-sm font-medium leading-relaxed">Les vues historiques consolidées par mois seront disponibles après synchronisation avec la base de données centrale.</p>
-        <button 
-           onClick={() => exportToJSON(computed, 'full_history_dump')}
-           className="mt-10 bg-slate-900 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-slate-100"
-        >
-          Exporter Historique JSON
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderSettings = () => (
-    <div className="animate-in fade-in duration-500">
-       <div className="mb-8">
-        <h2 className="text-2xl font-black text-slate-800">Configuration Système</h2>
-        <p className="text-slate-500">Gestion des seuils de qualité et paramètres des postes</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white rounded-[3rem] p-8 md:p-10 border border-slate-100 shadow-sm">
-          <h3 className="font-black text-slate-800 mb-8 flex items-center gap-3 text-xl tracking-tight">
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-              <Cog6ToothIcon className="w-6 h-6 text-indigo-500" />
-            </div>
-            Objectifs Qualité (%)
-          </h3>
-          <div className="space-y-3 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
-            {postes.map(p => (
-              <div key={p.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-transparent hover:border-slate-100 transition-all">
-                <span className="text-sm font-black text-slate-600 uppercase tracking-tight">{p.nom}</span>
-                <div className="flex items-center gap-3">
-                  <input 
-                    type="number" 
-                    step="0.1" 
-                    defaultValue={p.objectif_dechet_percent}
-                    disabled={userRole !== 'admin'}
-                    className="w-20 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-center font-black text-indigo-600 disabled:opacity-50 outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <span className="text-[10px] font-black text-slate-400">%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          {userRole === 'admin' && (
-            <button className="w-full mt-8 bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-xl shadow-indigo-100 hover:scale-[1.01] transition-all">
-              ENREGISTRER LES SEUILS
-            </button>
-          )}
-        </div>
-
-        <div className="space-y-8">
-          <div className="bg-white rounded-[3rem] p-8 md:p-10 border border-slate-100 shadow-sm">
-            <h3 className="font-black text-slate-800 mb-6 text-xl tracking-tight">Profil Actuel</h3>
-            <div className="flex items-center gap-5 p-6 bg-slate-900 rounded-[2.5rem] text-white">
-              <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-[2rem] flex items-center justify-center text-white font-black text-3xl shadow-lg border border-white/10">
-                {userRole === 'admin' ? 'AD' : 'VW'}
-              </div>
-              <div>
-                <p className="font-black text-white text-xl">{user?.email}</p>
-                <div className="inline-block mt-1 bg-indigo-500 text-[10px] text-white uppercase font-black tracking-widest px-2 py-0.5 rounded-full">
-                  Accès {userRole}
-                </div>
-              </div>
-            </div>
-            <div className="mt-10 space-y-6">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">E-mail de connexion</span>
-                <span className="text-slate-800 font-black">{user?.email}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm pt-6 border-t border-slate-50">
-                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">UID Firebase</span>
-                <span className="text-slate-500 font-bold truncate max-w-[150px]">{user?.uid}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-10 md:p-14 rounded-[3.5rem] shadow-2xl shadow-slate-200 border border-white max-w-md w-full relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-50 rounded-full blur-3xl opacity-50"></div>
-          
-          <div className="flex flex-col items-center mb-12 relative">
-            <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-indigo-200 mb-8 rotate-3 transform transition-transform hover:rotate-0 cursor-default">
-              <span className="text-white text-5xl font-black">E</span>
-            </div>
-            <h1 className="text-5xl font-black text-slate-800 text-center tracking-tighter">EcoTrack</h1>
-            <p className="text-slate-400 font-black mt-4 uppercase text-[10px] tracking-[0.4em]">
-              {isSignUp ? 'Créer un Compte' : 'Industrial Quality v2.0'}
-            </p>
-          </div>
-
-          <form onSubmit={handleAuth} className="space-y-6 relative">
-            {authError && (
-              <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl text-rose-600 text-xs font-bold animate-in">
-                {authError}
-              </div>
-            )}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-4">Identifiant</label>
-              <input 
-                name="email"
-                type="email" 
-                required
-                className="w-full bg-slate-50 border border-slate-100 rounded-[1.5rem] px-6 py-5 text-slate-800 focus:ring-4 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-300 font-bold" 
-                placeholder="votre@email.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-4">Mot de Passe</label>
-              <input 
-                name="password"
-                type="password" 
-                required
-                className="w-full bg-slate-50 border border-slate-100 rounded-[1.5rem] px-6 py-5 text-slate-800 focus:ring-4 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-300 font-bold" 
-                placeholder="••••••••"
-              />
-            </div>
-            <div className="flex flex-col gap-4 pt-6">
-               <button 
-                type="submit" 
-                onClick={() => setUserRole('admin')}
-                className="w-full bg-indigo-600 text-white font-black py-5 rounded-[1.5rem] shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-widest"
-              >
-                {isSignUp ? 'S\'inscrire Admin' : 'Accès Administrateur'}
-              </button>
-               <button 
-                type="submit" 
-                onClick={() => setUserRole('viewer')}
-                className="w-full bg-slate-800 text-white font-black py-5 rounded-[1.5rem] hover:bg-black transition-all text-sm uppercase tracking-widest"
-              >
-                {isSignUp ? 'S\'inscrire Observateur' : 'Accès Observateur'}
-              </button>
-            </div>
-            <div className="text-center mt-6">
-              <button 
-                type="button"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-indigo-600 font-black text-[10px] uppercase tracking-widest hover:underline"
-              >
-                {isSignUp ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}
-              </button>
-            </div>
-          </form>
-
-          <p className="mt-14 text-center text-[9px] text-slate-300 font-black uppercase tracking-widest">
-            EcoTrack Systems © 2024
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <Layout 
-      activeTab={activeTab} 
-      setActiveTab={setActiveTab} 
-      userRole={userRole}
-      onLogout={handleLogout}
-    >
-      {activeTab === 'dashboard' && renderDashboard()}
-      {activeTab === 'saisie' && renderSaisie()}
-      {activeTab === 'history' && renderHistory()}
-      {activeTab === 'settings' && renderSettings()}
-    </Layout>
-  );
-};
-
-export default App;
+        <h3 className="font-black text-2xl text-slate-
