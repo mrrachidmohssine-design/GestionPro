@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { ComputedEntry } from '../types';
+import { CheckIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid';
 
 interface StatsCardsProps {
   data: ComputedEntry[];
@@ -13,32 +14,39 @@ const StatsCards: React.FC<StatsCardsProps> = ({ data }) => {
   
   const conforming = data.filter(d => d.status === 'conforme').length;
   const totalPostes = data.length;
-  const performanceStatus = totalPostes > 0 ? (conforming / totalPostes) * 100 : 0;
+  const isGlobalConform = avgTaux <= 2.0; // Seuil global arbitraire pour l'affichage
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-        <p className="text-slate-500 text-sm font-medium mb-1">Total Déchets</p>
-        <p className="text-2xl font-bold text-slate-800">{totalWaste.toLocaleString()} <span className="text-xs font-normal text-slate-400">kg</span></p>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center">
+        <p className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-2">Total Déchets</p>
+        <p className="text-3xl font-black text-slate-800">{totalWaste.toFixed(2)}</p>
+        <p className="text-slate-400 text-xs mt-1">kg</p>
       </div>
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-        <p className="text-slate-500 text-sm font-medium mb-1">Production Total</p>
-        <p className="text-2xl font-bold text-slate-800">{totalProd.toLocaleString()} <span className="text-xs font-normal text-slate-400">kg</span></p>
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center">
+        <p className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-2">Total Production</p>
+        <p className="text-3xl font-black text-slate-800">{totalProd.toFixed(2)}</p>
+        <p className="text-slate-400 text-xs mt-1">kg</p>
       </div>
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-        <p className="text-slate-500 text-sm font-medium mb-1">Taux Moyen</p>
-        <p className={`text-2xl font-bold ${avgTaux > 2 ? 'text-orange-500' : 'text-blue-600'}`}>
-          {avgTaux.toFixed(2)}%
-        </p>
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center">
+        <p className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-2">Taux Global</p>
+        <p className="text-3xl font-black text-slate-800">{avgTaux.toFixed(2)}</p>
+        <p className="text-slate-400 text-xs mt-1">%</p>
       </div>
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-        <p className="text-slate-500 text-sm font-medium mb-1">Performance</p>
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center">
+        <p className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-2">Performance</p>
         <div className="flex items-center gap-2">
-          <p className="text-2xl font-bold text-slate-800">{performanceStatus.toFixed(0)}%</p>
-          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${performanceStatus > 80 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {performanceStatus > 80 ? 'Bonne' : 'Alerte'}
-          </span>
+          {isGlobalConform ? (
+             <CheckIcon className="w-6 h-6 text-slate-800" />
+          ) : (
+             <ExclamationCircleIcon className="w-6 h-6 text-orange-500" />
+          )}
+          <p className="text-2xl font-black text-slate-800">{isGlobalConform ? 'Conforme' : 'Alerte'}</p>
         </div>
+        <p className="text-slate-400 text-[10px] mt-1">vs objectif</p>
       </div>
     </div>
   );

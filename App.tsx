@@ -51,6 +51,7 @@ const App: React.FC = () => {
   const [userRole, setUserRole] = useState<'admin' | 'viewer'>('admin');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filterPosteId, setFilterPosteId] = useState('all');
   
   const [postes, setPostes] = useState<Poste[]>(MOCK_POSTES);
   const [entries, setEntries] = useState<DailyEntry[]>(MOCK_ENTRIES);
@@ -83,27 +84,59 @@ const App: React.FC = () => {
     }));
   };
 
+  const dashboardData = filterPosteId === 'all' 
+    ? computed 
+    : computed.filter(c => c.poste_id === filterPosteId);
+
   const renderDashboard = () => (
     <div className="animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Résumé Production</h2>
-          <p className="text-slate-500">Statistiques du jour {selectedDate}</p>
+      {/* HEADER SECTION FROM IMAGE */}
+      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] shadow-sm border border-slate-100 mb-8 flex flex-col items-center text-center">
+        <div className="flex items-center gap-4 mb-6">
+          <span className="text-4xl">📊</span>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
+            Suivi Déchets Production - Tableau de Bord
+          </h1>
         </div>
-        <input 
-          type="date" 
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none"
-        />
+        
+        <div className="flex flex-wrap items-center justify-center gap-4 w-full max-w-4xl">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Date:</span>
+            <input 
+              type="date" 
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-medium"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Filtrer par poste:</span>
+            <select 
+              value={filterPosteId}
+              onChange={(e) => setFilterPosteId(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-medium min-w-[180px]"
+            >
+              <option value="all">Tous les postes</option>
+              {postes.map(p => (
+                <option key={p.id} value={p.id}>{p.nom}</option>
+              ))}
+            </select>
+          </div>
+
+          <button className="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-indigo-100 transition-all text-sm flex items-center gap-2">
+            Calculer & Actualiser
+          </button>
+        </div>
       </div>
 
-      <StatsCards data={computed} />
-      <ChartsSection data={computed} />
+      <StatsCards data={dashboardData} />
+      
+      <ChartsSection data={computed} selectedPosteId={filterPosteId} />
 
       <div className="mt-8 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-          <h3 className="font-bold text-slate-800">Détails par Poste</h3>
+          <h3 className="font-bold text-slate-800">Détails de la performance</h3>
           <div className="flex gap-2">
             <button 
               onClick={() => exportToCSV(computed, `export_${selectedDate}`)}
@@ -116,37 +149,37 @@ const App: React.FC = () => {
         </div>
         <div className="table-container">
           <table className="w-full text-left">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+            <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider font-black">
               <tr>
-                <th className="px-6 py-4 font-semibold">Poste</th>
-                <th className="px-6 py-4 font-semibold text-center">Taux (%)</th>
-                <th className="px-6 py-4 font-semibold text-center">Déchets (kg)</th>
-                <th className="px-6 py-4 font-semibold text-center">Écart Obj</th>
-                <th className="px-6 py-4 font-semibold text-right">Statut</th>
+                <th className="px-6 py-4">Poste</th>
+                <th className="px-6 py-4 text-center">Taux (%)</th>
+                <th className="px-6 py-4 text-center">Déchets (kg)</th>
+                <th className="px-6 py-4 text-center">Écart Obj</th>
+                <th className="px-6 py-4 text-right">Statut</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {computed.map(item => (
+              {dashboardData.map(item => (
                 <tr key={item.poste_id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-slate-800">{item.poste_nom}</td>
+                  <td className="px-6 py-4 font-bold text-slate-700 text-sm">{item.poste_nom}</td>
                   <td className="px-6 py-4 text-center">
-                    <span className={`font-bold ${item.status === 'alerte' ? 'text-red-500' : 'text-slate-700'}`}>
+                    <span className="font-black text-slate-800 text-sm">
                       {item.taux_global.toFixed(2)}%
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-center text-slate-600">{item.total_dechets.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-center text-slate-500 text-sm">{item.total_dechets.toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">
-                    <span className={item.ecart > 0 ? 'text-orange-600' : 'text-green-600'}>
+                    <span className={`text-sm font-bold ${item.ecart > 0 ? 'text-orange-500' : 'text-green-500'}`}>
                       {item.ecart > 0 ? '+' : ''}{item.ecart.toFixed(2)}%
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                      item.status === 'conforme' ? 'bg-green-50 text-green-700 border-green-100' :
-                      item.status === 'attention' ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                      'bg-red-50 text-red-700 border-red-100'
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                      item.status === 'conforme' ? 'bg-green-100 text-green-700' :
+                      item.status === 'attention' ? 'bg-orange-100 text-orange-700' :
+                      'bg-red-100 text-red-700'
                     }`}>
-                      {item.status.toUpperCase()}
+                      {item.status}
                     </span>
                   </td>
                 </tr>
@@ -160,48 +193,52 @@ const App: React.FC = () => {
 
   const renderSaisie = () => (
     <div className="animate-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-800">Saisie des Déchets</h2>
-        <p className="text-slate-500">Enregistrement quotidien par shift</p>
+      <div className="mb-8 flex justify-between items-end">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800">Saisie des Déchets</h2>
+          <p className="text-slate-500">Enregistrement quotidien par shift</p>
+        </div>
+        <div className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border border-indigo-100">
+          Mode Admin
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {postes.map(poste => {
           const entry = entries.find(e => e.poste_id === poste.id);
+          const comp = computed.find(c => c.poste_id === poste.id);
           return (
-            <div key={poste.id} className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-              <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-                <h3 className="font-bold text-slate-800 text-sm truncate pr-2" title={poste.nom}>{poste.nom}</h3>
-                <span className="text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-400 font-bold">
+            <div key={poste.id} className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden group">
+              <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+                <h3 className="font-black text-slate-700 text-xs truncate pr-2 uppercase tracking-wide" title={poste.nom}>{poste.nom}</h3>
+                <span className="text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-full text-slate-400 font-black">
                   OBJ: {poste.objectif_dechet_percent}%
                 </span>
               </div>
-              <div className="p-5 space-y-6">
+              <div className="p-5 space-y-5">
                 {[1, 2, 3].map(shift => (
                   <div key={shift} className="space-y-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                      <span className="text-xs font-bold text-slate-500 uppercase">Shift {shift}</span>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full ${['bg-indigo-500', 'bg-violet-500', 'bg-pink-500'][shift-1]}`}></div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Shift {shift}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Déchets (kg)</label>
+                      <div className="relative">
                         <input 
                           type="number"
                           value={entry?.[`s${shift}_dechets` as keyof DailyEntry] || ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'dechets', e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          placeholder="0"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder:text-slate-200 font-bold"
+                          placeholder="Déchets kg"
                         />
                       </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Produit (kg)</label>
+                      <div className="relative">
                         <input 
                           type="number"
                           value={entry?.[`s${shift}_produit` as keyof DailyEntry] || ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'produit', e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          placeholder="0"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder:text-slate-200 font-bold"
+                          placeholder="Produit kg"
                         />
                       </div>
                     </div>
@@ -210,14 +247,16 @@ const App: React.FC = () => {
               </div>
               <div className="px-5 py-3 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">Total Taux</span>
-                  <span className="font-bold text-slate-700">
-                    {computed.find(c => c.poste_id === poste.id)?.taux_global.toFixed(2)}%
+                  <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Taux Global</span>
+                  <span className={`font-black text-lg ${comp?.status === 'alerte' ? 'text-red-500' : 'text-slate-800'}`}>
+                    {comp?.taux_global.toFixed(2)}%
                   </span>
                 </div>
-                <div className={`w-2 h-2 rounded-full ${
-                  computed.find(c => c.poste_id === poste.id)?.status === 'alerte' ? 'bg-red-500' : 'bg-green-500'
-                }`}></div>
+                <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
+                  comp?.status === 'conforme' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'
+                }`}>
+                  {comp?.status}
+                </div>
               </div>
             </div>
           );
@@ -225,8 +264,8 @@ const App: React.FC = () => {
       </div>
       
       <div className="mt-8 flex justify-end">
-        <button className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-2">
-          Sauvegarder les données
+        <button className="bg-slate-800 text-white px-10 py-4 rounded-2xl font-black shadow-xl shadow-slate-200 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+          VALIDER & SAUVEGARDER
           <ChevronRightIcon className="w-5 h-5" />
         </button>
       </div>
@@ -237,28 +276,28 @@ const App: React.FC = () => {
     <div className="animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Historique Mensuel</h2>
+          <h2 className="text-2xl font-black text-slate-800">Historique Mensuel</h2>
           <p className="text-slate-500">Tendances et archivage</p>
         </div>
         <div className="flex gap-3">
-          <input type="month" className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-slate-700 shadow-sm outline-none" defaultValue="2024-03" />
-          <button className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors">
+          <input type="month" className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-slate-700 shadow-sm outline-none font-bold" defaultValue="2024-03" />
+          <button className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors">
             <ArrowPathIcon className="w-6 h-6" />
           </button>
         </div>
       </div>
       
-      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center min-h-[400px]">
-        <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4 text-slate-300">
-          <ClockIcon className="w-10 h-10" />
+      <div className="bg-white p-12 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center min-h-[500px]">
+        <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-6 text-slate-200">
+          <ClockIcon className="w-12 h-12" />
         </div>
-        <h3 className="font-bold text-slate-800 mb-2">Historique en cours de chargement</h3>
-        <p className="text-slate-500 max-w-sm">Les vues historiques consolidées par mois seront disponibles après synchronisation avec la base de données Supabase.</p>
+        <h3 className="font-black text-xl text-slate-800 mb-2 tracking-tight">Synchronisation de l'Historique</h3>
+        <p className="text-slate-400 max-w-sm font-medium">Les vues historiques consolidées par mois seront disponibles après synchronisation avec la base de données de production.</p>
         <button 
            onClick={() => exportToJSON(computed, 'full_history_dump')}
-           className="mt-6 text-blue-600 font-bold hover:underline"
+           className="mt-8 bg-slate-100 text-slate-600 px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
         >
-          Exporter le dump JSON actuel
+          Exporter JSON Brut
         </button>
       </div>
     </div>
@@ -267,72 +306,72 @@ const App: React.FC = () => {
   const renderSettings = () => (
     <div className="animate-in fade-in duration-500">
        <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-800">Paramètres</h2>
-        <p className="text-slate-500">Gestion des objectifs et profil</p>
+        <h2 className="text-2xl font-black text-slate-800">Configuration</h2>
+        <p className="text-slate-500">Gestion des seuils et paramètres système</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-          <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <Cog6ToothIcon className="w-5 h-5 text-slate-400" />
-            Objectifs de déchets (%)
+        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+          <h3 className="font-black text-slate-800 mb-8 flex items-center gap-3 text-lg">
+            <Cog6ToothIcon className="w-6 h-6 text-indigo-500" />
+            Objectifs Qualité (%)
           </h3>
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
             {postes.map(p => (
-              <div key={p.id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
-                <span className="text-sm font-medium text-slate-700">{p.nom}</span>
+              <div key={p.id} className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                <span className="text-sm font-bold text-slate-600 uppercase tracking-tight">{p.nom}</span>
                 <div className="flex items-center gap-3">
                   <input 
                     type="number" 
                     step="0.1" 
                     defaultValue={p.objectif_dechet_percent}
                     disabled={userRole !== 'admin'}
-                    className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm text-center font-bold text-blue-600 disabled:opacity-50"
+                    className="w-20 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-center font-black text-indigo-600 disabled:opacity-50 outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  <span className="text-xs text-slate-400">%</span>
+                  <span className="text-[10px] font-black text-slate-400">%</span>
                 </div>
               </div>
             ))}
           </div>
           {userRole === 'admin' && (
-            <button className="w-full mt-6 bg-slate-800 text-white py-3 rounded-2xl font-bold hover:bg-slate-900 transition-all">
-              Mettre à jour les objectifs
+            <button className="w-full mt-8 bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-indigo-100 hover:scale-[1.01] transition-all">
+              ENREGISTRER LES MODIFICATIONS
             </button>
           )}
         </div>
 
         <div className="space-y-8">
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-            <h3 className="font-bold text-slate-800 mb-4">Profil Utilisateur</h3>
-            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                A
+          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+            <h3 className="font-black text-slate-800 mb-6 text-lg tracking-tight">Utilisateur Connecté</h3>
+            <div className="flex items-center gap-5 p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100">
+              <div className="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-indigo-700 rounded-3xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100">
+                {userRole === 'admin' ? 'AD' : 'VW'}
               </div>
               <div>
-                <p className="font-bold text-slate-800">Admin Production</p>
-                <p className="text-xs text-slate-500 uppercase tracking-widest">{userRole}</p>
+                <p className="font-black text-slate-800 text-lg">Responsable Production</p>
+                <p className="text-[10px] text-indigo-400 uppercase font-black tracking-[0.2em]">{userRole}</p>
               </div>
             </div>
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Email</span>
-                <span className="text-slate-800 font-medium">admin@eco-production.fr</span>
+            <div className="mt-8 space-y-4">
+              <div className="flex justify-between text-sm pb-4 border-b border-slate-50">
+                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Identifiant</span>
+                <span className="text-slate-800 font-black">admin@eco-track.tech</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Dernière connexion</span>
-                <span className="text-slate-800 font-medium">Aujourd'hui, 08:34</span>
+                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Session active</span>
+                <span className="text-indigo-600 font-black underline">Modifier le MDP</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-orange-50 rounded-3xl p-6 border border-orange-100">
-            <div className="flex gap-3">
-              <ExclamationTriangleIcon className="w-6 h-6 text-orange-600" />
+          <div className="bg-rose-50 rounded-[2.5rem] p-8 border border-rose-100">
+            <div className="flex gap-4">
+              <ExclamationTriangleIcon className="w-8 h-8 text-rose-500" />
               <div>
-                <h4 className="font-bold text-orange-900 mb-1">Zone de Danger</h4>
-                <p className="text-sm text-orange-800 opacity-80 mb-4">Supprimer toutes les entrées du mois actuel réinitialisera les compteurs.</p>
-                <button className="text-red-600 text-sm font-bold bg-white border border-red-100 px-4 py-2 rounded-xl hover:bg-red-50 transition-all">
-                  Réinitialiser le mois
+                <h4 className="font-black text-rose-900 mb-1 text-lg">Maintenance Données</h4>
+                <p className="text-sm text-rose-800 opacity-80 mb-6 leading-relaxed">Cette opération réinitialise définitivement les entrées de la journée en cours. Aucun retour possible.</p>
+                <button className="text-white text-xs font-black bg-rose-500 px-6 py-3 rounded-xl hover:bg-rose-600 transition-all shadow-lg shadow-rose-100 uppercase tracking-widest">
+                  Reset Journalier
                 </button>
               </div>
             </div>
@@ -344,55 +383,56 @@ const App: React.FC = () => {
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-[40px] shadow-2xl shadow-blue-100 border border-white max-w-md w-full">
-          <div className="flex flex-col items-center mb-10">
-            <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center shadow-lg shadow-blue-200 mb-6 rotate-3">
-              <span className="text-white text-4xl font-black">E</span>
+      <div className="min-h-screen bg-indigo-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-10 rounded-[3rem] shadow-2xl shadow-indigo-200/50 border border-white max-w-md w-full">
+          <div className="flex flex-col items-center mb-12">
+            <div className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-indigo-300 mb-8 rotate-3">
+              <span className="text-white text-5xl font-black">E</span>
             </div>
-            <h1 className="text-3xl font-black text-slate-800 text-center tracking-tight">EcoProduction</h1>
-            <p className="text-slate-400 font-medium mt-1">Plateforme de suivi industriel</p>
+            <h1 className="text-4xl font-black text-slate-800 text-center tracking-tighter">EcoTrack</h1>
+            <div className="h-1 w-12 bg-indigo-500 rounded-full mt-3"></div>
+            <p className="text-slate-400 font-bold mt-4 uppercase text-[10px] tracking-[0.3em]">Suivi Industriel</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
-            <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Identifiant</label>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-2">Email</label>
               <input 
                 type="email" 
-                defaultValue="admin@eco-production.fr"
-                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-300 font-medium" 
-                placeholder="email@compagnie.com"
+                defaultValue="admin@eco-track.tech"
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-5 text-slate-800 focus:ring-4 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-300 font-bold" 
+                placeholder="votre@email.com"
               />
             </div>
-            <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Mot de passe</label>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-2">Code Secret</label>
               <input 
                 type="password" 
                 defaultValue="password"
-                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-300 font-medium" 
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-5 text-slate-800 focus:ring-4 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-300 font-bold" 
                 placeholder="••••••••"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-3 pt-4">
                <button 
                 type="submit" 
                 onClick={() => setUserRole('admin')}
-                className="flex-1 bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 hover:scale-[1.02] active:scale-95 transition-all"
+                className="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-indigo-200 hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-widest"
               >
-                Accès Admin
+                Accès Administrateur
               </button>
                <button 
                 type="submit" 
                 onClick={() => setUserRole('viewer')}
-                className="flex-1 bg-slate-100 text-slate-600 font-bold py-4 rounded-2xl hover:bg-slate-200 transition-all"
+                className="w-full bg-slate-800 text-white font-black py-5 rounded-2xl hover:bg-black transition-all text-sm uppercase tracking-widest"
               >
-                Accès Lecture
+                Mode Consultation
               </button>
             </div>
           </form>
 
-          <p className="mt-10 text-center text-xs text-slate-400 font-medium">
-            Contactez la maintenance pour tout problème d'accès.
+          <p className="mt-12 text-center text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+            © 2024 EcoTrack Industrial Solutions
           </p>
         </div>
       </div>
