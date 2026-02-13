@@ -17,7 +17,6 @@ import {
 import { 
   collection, 
   doc, 
-  setDoc, 
   getDocs, 
   query, 
   where,
@@ -70,7 +69,6 @@ const App: React.FC = () => {
   const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [computed, setComputed] = useState<ComputedEntry[]>([]);
 
-  // Initial load or user change
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -79,7 +77,6 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch data from Firestore when date changes
   useEffect(() => {
     if (!user) return;
     
@@ -93,7 +90,6 @@ const App: React.FC = () => {
           fetchedEntries.push(doc.data() as DailyEntry);
         });
 
-        // Initialize missing postes with zero values
         const fullEntries = postes.map(p => {
           const existing = fetchedEntries.find(e => e.poste_id === p.id);
           return existing || {
@@ -118,7 +114,6 @@ const App: React.FC = () => {
     fetchData();
   }, [selectedDate, user, postes]);
 
-  // Re-calculate results whenever entries change
   useEffect(() => {
     const calculated = entries.map(entry => {
       const poste = postes.find(p => p.id === entry.poste_id)!;
@@ -179,7 +174,6 @@ const App: React.FC = () => {
     try {
       const batch = writeBatch(db);
       entries.forEach((entry) => {
-        // Use a composite ID: date_posteId to uniquely identify an entry per day
         const docId = `${entry.date}_${entry.poste_id}`;
         const docRef = doc(db, "daily_entries", docId);
         batch.set(docRef, {
@@ -211,7 +205,6 @@ const App: React.FC = () => {
             Saisie & Suivi des Données de Production
           </h1>
         </div>
-        
         <div className="flex flex-wrap items-center justify-center gap-4 w-full max-w-5xl">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date:</span>
@@ -222,7 +215,6 @@ const App: React.FC = () => {
               className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-slate-700 font-bold text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
-
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Poste:</span>
             <select 
@@ -236,9 +228,7 @@ const App: React.FC = () => {
               ))}
             </select>
           </div>
-
           <div className="h-10 w-[1px] bg-slate-100 mx-2 hidden md:block"></div>
-
           <div className="flex bg-slate-100 p-1 rounded-xl">
             <button 
               onClick={() => setDashboardView('grid')}
@@ -253,19 +243,9 @@ const App: React.FC = () => {
               <ListBulletIcon className="w-5 h-5" />
             </button>
           </div>
-
-          <button 
-            onClick={() => window.location.reload()}
-            className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-slate-200 transition-all text-sm flex items-center gap-2 hover:bg-black"
-          >
-            <ArrowPathIcon className="w-4 h-4" />
-            Actualiser
-          </button>
         </div>
       </div>
-
       <StatsCards data={dashboardData} />
-      
       {dashboardView === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           {dashboardData.map((item) => (
@@ -276,13 +256,10 @@ const App: React.FC = () => {
                   Objectif: {item.objectif}%
                 </div>
               </div>
-
               <div className="p-6 grid grid-cols-3 gap-2 border-b border-slate-50 bg-slate-50/20">
                 {[1, 2, 3].map((shift) => (
                   <div key={shift} className="space-y-3">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter text-center">
-                      SHIFT {shift}
-                    </p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter text-center">SHIFT {shift}</p>
                     <div className="space-y-2">
                       <div className="bg-white border border-slate-100 rounded-lg p-2 text-center shadow-sm">
                         <p className="text-[7px] text-slate-400 font-bold uppercase leading-none mb-1">Déchets (kg)</p>
@@ -296,7 +273,6 @@ const App: React.FC = () => {
                   </div>
                 ))}
               </div>
-
               <div className="p-4 bg-slate-50/50 flex justify-between items-center mt-auto">
                  <div className="flex flex-col">
                     <span className="text-[8px] text-slate-400 font-black uppercase tracking-widest">Taux Global</span>
@@ -317,16 +293,6 @@ const App: React.FC = () => {
         </div>
       ) : (
         <div className="mb-12 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-            <h3 className="font-bold text-slate-800">Détails de la performance</h3>
-            <button 
-              onClick={() => exportToCSV(computed, `export_${selectedDate}`)}
-              className="text-xs bg-slate-50 hover:bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors border border-slate-200"
-            >
-              <DocumentArrowDownIcon className="w-3 h-3" />
-              Exporter CSV
-            </button>
-          </div>
           <div className="table-container">
             <table className="w-full text-left">
               <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider font-black">
@@ -342,11 +308,7 @@ const App: React.FC = () => {
                 {dashboardData.map(item => (
                   <tr key={item.poste_id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-bold text-slate-700 text-sm">{item.poste_nom}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="font-black text-slate-800 text-sm">
-                        {item.taux_global.toFixed(2)}%
-                      </span>
-                    </td>
+                    <td className="px-6 py-4 text-center font-black text-slate-800 text-sm">{item.taux_global.toFixed(2)}%</td>
                     <td className="px-6 py-4 text-center text-slate-500 text-sm">{item.total_dechets.toLocaleString()}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`text-sm font-bold ${item.ecart > 0 ? 'text-orange-500' : 'text-emerald-500'}`}>
@@ -369,7 +331,6 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-
       <ChartsSection data={computed} selectedPosteId={filterPosteId} />
     </div>
   );
@@ -379,13 +340,17 @@ const App: React.FC = () => {
       <div className="mb-8 flex justify-between items-end">
         <div>
           <h2 className="text-2xl font-black text-slate-800">Saisie des Données</h2>
-          <p className="text-slate-500">Enregistrement quotidien par shift de production</p>
+          <p className="text-slate-500">Saisie pour le {new Date(selectedDate).toLocaleDateString('fr-FR')}</p>
         </div>
-        <div className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-100">
-          Admin Connecté
+        <div className="flex items-center gap-4">
+           <input 
+              type="date" 
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-slate-700 font-bold text-sm outline-none"
+            />
         </div>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {postes.map(poste => {
           const entry = entries.find(e => e.poste_id === poste.id);
@@ -394,9 +359,7 @@ const App: React.FC = () => {
             <div key={poste.id} className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden group">
               <div className="p-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
                 <h3 className="font-black text-indigo-700 text-xs truncate pr-2 uppercase tracking-wide" title={poste.nom}>{poste.nom}</h3>
-                <span className="text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-full text-slate-400 font-black">
-                  OBJ: {poste.objectif_dechet_percent}%
-                </span>
+                <span className="text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-full text-slate-400 font-black">OBJ: {poste.objectif_dechet_percent}%</span>
               </div>
               <div className="p-5 space-y-5">
                 {[1, 2, 3].map(shift => (
@@ -412,7 +375,7 @@ const App: React.FC = () => {
                           type="number"
                           value={entry?.[`s${shift}_dechets` as keyof DailyEntry] || ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'dechets', e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder:text-slate-200 font-bold"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
                           placeholder="0"
                         />
                       </div>
@@ -422,7 +385,7 @@ const App: React.FC = () => {
                           type="number"
                           value={entry?.[`s${shift}_produit` as keyof DailyEntry] || ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'produit', e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder:text-slate-200 font-bold"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
                           placeholder="0"
                         />
                       </div>
@@ -433,23 +396,18 @@ const App: React.FC = () => {
               <div className="px-5 py-3 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
                 <div className="flex flex-col">
                   <span className="text-[8px] text-slate-400 font-black uppercase tracking-widest">Taux Jour</span>
-                  <span className={`font-black text-lg ${comp?.status === 'alerte' ? 'text-rose-500' : 'text-slate-800'}`}>
-                    {comp?.taux_global.toFixed(2)}%
-                  </span>
+                  <span className={`font-black text-lg ${comp?.status === 'alerte' ? 'text-rose-500' : comp?.status === 'attention' ? 'text-amber-500' : 'text-slate-800'}`}>{comp?.taux_global.toFixed(2)}%</span>
                 </div>
                 <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
                   comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                  comp?.status === 'attention' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                  comp?.status === 'attention' ? 'bg-amber-50 text-amber-700 border-amber-100' : 
                   'bg-rose-50 text-rose-700 border-rose-100'
-                }`}>
-                  {comp?.status}
-                </div>
+                }`}>{comp?.status}</div>
               </div>
             </div>
           );
         })}
       </div>
-      
       <div className="mt-8 flex justify-end">
         <button 
           onClick={saveToFirebase}
@@ -466,20 +424,74 @@ const App: React.FC = () => {
   const renderHistory = () => (
     <div className="animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-slate-800">Historique Mensuel</h2>
-          <p className="text-slate-500">Tendances de production et archivage des rebuts</p>
-        </div>
-        <div className="flex gap-3">
-          <input type="month" className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-slate-700 shadow-sm outline-none font-bold" defaultValue="2024-03" />
-          <button className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors">
-            <ArrowPathIcon className="w-6 h-6" />
-          </button>
+        <div><h2 className="text-2xl font-black text-slate-800">Historique Mensuel</h2></div>
+      </div>
+      <div className="bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center min-h-[500px]">
+        <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 text-slate-200"><ClockIcon className="w-14 h-14" /></div>
+        <h3 className="font-black text-2xl text-slate-800 mb-4 tracking-tight">Historique des entrées</h3>
+        <p className="text-slate-400 max-w-sm font-medium leading-relaxed">Les données sauvegardées sont persistées sur Firebase.</p>
+        <button onClick={() => exportToJSON(computed, 'data_dump')} className="mt-10 bg-slate-900 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest">Exporter JSON</button>
+      </div>
+    </div>
+  );
+
+  const renderSettings = () => (
+    <div className="animate-in fade-in duration-500">
+      <div className="mb-8"><h2 className="text-2xl font-black text-slate-800">Configuration</h2></div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white rounded-[3rem] p-8 md:p-10 border border-slate-100 shadow-sm">
+          <h3 className="font-black text-slate-800 mb-6 text-xl">Profil Actuel</h3>
+          <div className="flex items-center gap-5 p-6 bg-slate-900 rounded-[2.5rem] text-white">
+            <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-[2rem] flex items-center justify-center text-white font-black text-3xl">{user?.email?.[0].toUpperCase()}</div>
+            <div>
+              <p className="font-black text-white text-xl truncate max-w-[200px]">{user?.email}</p>
+              <div className="inline-block mt-1 bg-indigo-500 text-[10px] text-white uppercase font-black tracking-widest px-2 py-0.5 rounded-full">Accès {userRole}</div>
+            </div>
+          </div>
         </div>
       </div>
-      
-      <div className="bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center min-h-[500px]">
-        <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 text-slate-200">
-          <ClockIcon className="w-14 h-14" />
+    </div>
+  );
+
+  if (loading) return <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>;
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-10 md:p-14 rounded-[3.5rem] shadow-2xl shadow-slate-200 border border-white max-w-md w-full relative overflow-hidden">
+          <div className="flex flex-col items-center mb-12 relative">
+            <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-indigo-200 mb-8"><span className="text-white text-5xl font-black">E</span></div>
+            <h1 className="text-5xl font-black text-slate-800 text-center tracking-tighter">EcoTrack</h1>
+            <p className="text-slate-400 font-black mt-4 uppercase text-[10px] tracking-[0.4em]">{isSignUp ? 'Créer un Compte' : 'Connexion'}</p>
+          </div>
+          <form onSubmit={handleAuth} className="space-y-6 relative">
+            {authError && <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl text-rose-600 text-xs font-bold animate-in">{authError}</div>}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-4">Email</label>
+              <input name="email" type="email" required className="w-full bg-slate-50 border border-slate-100 rounded-[1.5rem] px-6 py-5 text-slate-800 outline-none font-bold" placeholder="votre@email.com" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-4">Mot de Passe</label>
+              <input name="password" type="password" required className="w-full bg-slate-50 border border-slate-100 rounded-[1.5rem] px-6 py-5 text-slate-800 outline-none font-bold" placeholder="••••••••" />
+            </div>
+            <button type="submit" className="w-full bg-indigo-600 text-white font-black py-5 rounded-[1.5rem] shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-widest">{isSignUp ? 'S\'inscrire' : 'Se Connecter'}</button>
+            <div className="text-center mt-6">
+              <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-indigo-600 font-black text-[10px] uppercase tracking-widest hover:underline">{isSignUp ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}</button>
+            </div>
+          </form>
         </div>
-        <h3 className="font-black text-2xl text-slate-
+      </div>
+    );
+  }
+
+  return (
+    <Layout activeTab={activeTab} setActiveTab={setActiveTab} userRole={userRole} onLogout={handleLogout}>
+      {activeTab === 'dashboard' && renderDashboard()}
+      {activeTab === 'saisie' && renderSaisie()}
+      {activeTab === 'history' && renderHistory()}
+      {activeTab === 'settings' && renderSettings()}
+    </Layout>
+  );
+};
+
+export default App;
