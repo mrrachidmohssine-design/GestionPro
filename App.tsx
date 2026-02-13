@@ -1,11 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import { Poste, DailyEntry, ComputedEntry, Profile } from './types';
+import { Poste, DailyEntry, ComputedEntry } from './types';
 import { computeEntryData } from './utils/calculations';
 import { exportToCSV, exportToJSON } from './utils/export';
 import Layout from './components/Layout';
 import StatsCards from './components/StatsCards';
 import ChartsSection from './components/ChartsSection';
+import { auth } from './firebase';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  User
+} from 'firebase/auth';
 import { 
   ChevronRightIcon, 
   ArrowPathIcon, 
@@ -17,7 +25,6 @@ import {
   ListBulletIcon
 } from '@heroicons/react/24/solid';
 
-// COMPLETE LIST OF PRODUCTION STATIONS
 const MOCK_POSTES: Poste[] = [
   { id: '1', nom: 'Plaques Métal déployé', objectif_dechet_percent: 2.0, actif: true },
   { id: '2', nom: 'Plaques Empateuse', objectif_dechet_percent: 3.5, actif: true },
@@ -49,16 +56,28 @@ const MOCK_ENTRIES: DailyEntry[] = MOCK_POSTES.map(p => ({
 }));
 
 const App: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
+  
   const [userRole, setUserRole] = useState<'admin' | 'viewer'>('admin');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [dashboardView, setDashboardView] = useState<'grid' | 'table'>('grid');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterPosteId, setFilterPosteId] = useState('all');
   
-  const [postes, setPostes] = useState<Poste[]>(MOCK_POSTES);
+  const [postes] = useState<Poste[]>(MOCK_POSTES);
   const [entries, setEntries] = useState<DailyEntry[]>(MOCK_ENTRIES);
   const [computed, setComputed] = useState<ComputedEntry[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const calculated = entries.map(entry => {
@@ -68,9 +87,37 @@ const App: React.FC = () => {
     setComputed(calculated);
   }, [entries, postes]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoggedIn(true);
+    setAuthError(null);
+    const form = e.currentTarget as HTMLFormElement;
+    const email = (form.elements.namedItem('email') as HTMLInputElement).value;
+    const password = (form.elements.namedItem('password') as HTMLInputElement).value;
+
+    try {
+      if (isSignUp) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (error: any) {
+      if (error.code === 'auth/email-already-in-use') {
+        setAuthError("User already exists. Please sign in");
+      } else if (
+        error.code === 'auth/invalid-credential' || 
+        error.code === 'auth/user-not-found' || 
+        error.code === 'auth/wrong-password'
+      ) {
+        setAuthError("Email or password is incorrect");
+      } else {
+        setAuthError("An unexpected error occurred. Please try again.");
+      }
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setUser(null);
   };
 
   const updateEntry = (posteId: string, shift: 1 | 2 | 3, field: 'dechets' | 'produit', value: string) => {
@@ -420,7 +467,7 @@ const App: React.FC = () => {
                 {userRole === 'admin' ? 'AD' : 'VW'}
               </div>
               <div>
-                <p className="font-black text-white text-xl">Resp. Production</p>
+                <p className="font-black text-white text-xl">{user?.email}</p>
                 <div className="inline-block mt-1 bg-indigo-500 text-[10px] text-white uppercase font-black tracking-widest px-2 py-0.5 rounded-full">
                   Accès {userRole}
                 </div>
@@ -429,26 +476,11 @@ const App: React.FC = () => {
             <div className="mt-10 space-y-6">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">E-mail de connexion</span>
-                <span className="text-slate-800 font-black">admin@eco-track.tech</span>
+                <span className="text-slate-800 font-black">{user?.email}</span>
               </div>
               <div className="flex justify-between items-center text-sm pt-6 border-t border-slate-50">
-                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Dernière activité</span>
-                <span className="text-slate-500 font-bold">Aujourd'hui, 14:32</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-rose-50 rounded-[3rem] p-8 md:p-10 border border-rose-100">
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center shrink-0">
-                <ExclamationTriangleIcon className="w-10 h-10 text-rose-600" />
-              </div>
-              <div>
-                <h4 className="font-black text-rose-900 mb-2 text-xl">Zone Critique</h4>
-                <p className="text-sm text-rose-800 opacity-80 mb-8 leading-relaxed font-medium">La réinitialisation supprimera toutes les saisies du jour en cours. Cette action est irréversible et sera loguée dans le registre système.</p>
-                <button className="w-full md:w-auto text-white text-xs font-black bg-rose-600 px-8 py-4 rounded-2xl hover:bg-rose-700 transition-all shadow-xl shadow-rose-200 uppercase tracking-widest">
-                  Réinitialiser les données du jour
-                </button>
+                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">UID Firebase</span>
+                <span className="text-slate-500 font-bold truncate max-w-[150px]">{user?.uid}</span>
               </div>
             </div>
           </div>
@@ -457,7 +489,15 @@ const App: React.FC = () => {
     </div>
   );
 
-  if (!isLoggedIn) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
         <div className="bg-white p-10 md:p-14 rounded-[3.5rem] shadow-2xl shadow-slate-200 border border-white max-w-md w-full relative overflow-hidden">
@@ -468,15 +508,23 @@ const App: React.FC = () => {
               <span className="text-white text-5xl font-black">E</span>
             </div>
             <h1 className="text-5xl font-black text-slate-800 text-center tracking-tighter">EcoTrack</h1>
-            <p className="text-slate-400 font-black mt-4 uppercase text-[10px] tracking-[0.4em]">Industrial Quality v2.0</p>
+            <p className="text-slate-400 font-black mt-4 uppercase text-[10px] tracking-[0.4em]">
+              {isSignUp ? 'Créer un Compte' : 'Industrial Quality v2.0'}
+            </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6 relative">
+          <form onSubmit={handleAuth} className="space-y-6 relative">
+            {authError && (
+              <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl text-rose-600 text-xs font-bold animate-in">
+                {authError}
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-4">Identifiant</label>
               <input 
+                name="email"
                 type="email" 
-                defaultValue="admin@eco-track.tech"
+                required
                 className="w-full bg-slate-50 border border-slate-100 rounded-[1.5rem] px-6 py-5 text-slate-800 focus:ring-4 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-300 font-bold" 
                 placeholder="votre@email.com"
               />
@@ -484,8 +532,9 @@ const App: React.FC = () => {
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-4">Mot de Passe</label>
               <input 
+                name="password"
                 type="password" 
-                defaultValue="password"
+                required
                 className="w-full bg-slate-50 border border-slate-100 rounded-[1.5rem] px-6 py-5 text-slate-800 focus:ring-4 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-300 font-bold" 
                 placeholder="••••••••"
               />
@@ -496,14 +545,23 @@ const App: React.FC = () => {
                 onClick={() => setUserRole('admin')}
                 className="w-full bg-indigo-600 text-white font-black py-5 rounded-[1.5rem] shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-widest"
               >
-                Accès Administrateur
+                {isSignUp ? 'S\'inscrire Admin' : 'Accès Administrateur'}
               </button>
                <button 
                 type="submit" 
                 onClick={() => setUserRole('viewer')}
                 className="w-full bg-slate-800 text-white font-black py-5 rounded-[1.5rem] hover:bg-black transition-all text-sm uppercase tracking-widest"
               >
-                Accès Observateur
+                {isSignUp ? 'S\'inscrire Observateur' : 'Accès Observateur'}
+              </button>
+            </div>
+            <div className="text-center mt-6">
+              <button 
+                type="button"
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-indigo-600 font-black text-[10px] uppercase tracking-widest hover:underline"
+              >
+                {isSignUp ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}
               </button>
             </div>
           </form>
@@ -521,7 +579,7 @@ const App: React.FC = () => {
       activeTab={activeTab} 
       setActiveTab={setActiveTab} 
       userRole={userRole}
-      onLogout={() => setIsLoggedIn(false)}
+      onLogout={handleLogout}
     >
       {activeTab === 'dashboard' && renderDashboard()}
       {activeTab === 'saisie' && renderSaisie()}
