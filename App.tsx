@@ -88,16 +88,12 @@ const App: React.FC = () => {
             if (snap.exists()) {
               setUserRole(snap.data().role as Role);
             } else {
-              // Si le profil n'existe pas, on le crée par défaut en viewer
-              await setDoc(doc(db, "profiles", currentUser.uid), {
-                email: currentUser.email,
-                role: 'viewer',
-                updated_at: new Date().toISOString()
-              });
+              // Si le profil n'existe pas encore (premier admin), on peut forcer le rôle ici si nécessaire
+              // ou laisser en viewer par défaut
               setUserRole('viewer');
             }
           } catch (e) {
-            console.error("Erreur rôle:", e);
+            console.error("Erreur récupération rôle:", e);
             setUserRole('viewer');
           }
         }
@@ -122,7 +118,12 @@ const App: React.FC = () => {
       
       if (fetchedPostes.length === 0) {
         fetchedPostes = DEFAULT_POSTES;
-        // Optionnel: On ne sauvegarde pas auto pour éviter les écritures inutiles au viewer
+        // Optionnel : enregistrer les postes par défaut si admin
+        if (userRole === 'admin') {
+           const batch = writeBatch(db);
+           fetchedPostes.forEach(p => batch.set(doc(db, "postes", p.id), p));
+           await batch.commit();
+        }
       }
       setPostes(fetchedPostes);
 
@@ -149,18 +150,19 @@ const App: React.FC = () => {
     } finally { 
       setLoading(false); 
     }
-  }, [selectedDate, user]);
+  }, [selectedDate, user, userRole]);
 
   useEffect(() => { 
     if (user) fetchData(); 
   }, [fetchData, user]);
 
-  // Actions Admin
+  // Actions Admin : Modification des champs de saisie
   const handleUpdateSaisie = (posteId: string, shift: 1|2|3, field: 'dechets'|'produit', val: string) => {
     if (userRole !== 'admin') return;
     setEntries(prev => prev.map(e => e.poste_id === posteId ? { ...e, [`s${shift}_${field}`]: val } : e));
   };
 
+  // Actions Admin : Enregistrement en base de données
   const handleSaveSaisie = async () => {
     if (userRole !== 'admin') return;
     setSaving(true);
@@ -180,12 +182,13 @@ const App: React.FC = () => {
       alert("Données de production enregistrées avec succès !");
     } catch (e) { 
       console.error(e);
-      alert("Erreur lors de l'enregistrement. Vérifiez vos permissions."); 
+      alert("Erreur lors de l'enregistrement. Vérifiez vos droits d'accès."); 
     } finally { 
       setSaving(false); 
     }
   };
 
+  // Actions Admin : Mise à jour des objectifs (Paramètres)
   const handleSaveSettings = async () => {
     if (userRole !== 'admin') return;
     setSaving(true);
@@ -195,7 +198,7 @@ const App: React.FC = () => {
         batch.set(doc(db, "postes", p.id), p);
       });
       await batch.commit();
-      alert("Objectifs de production mis à jour !");
+      alert("Paramètres des postes mis à jour !");
     } catch (e) { 
       console.error(e);
       alert("Erreur lors de la mise à jour des paramètres."); 
@@ -329,9 +332,7 @@ const App: React.FC = () => {
                     {[1, 2, 3].map(s => (
                       <div key={s} className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <label className="text-[8px] font-black text-slate-400 uppercase flex items-center gap-1">
-                            Shift {s} - Déchets
-                          </label>
+                          <label className="text-[8px] font-black text-slate-400 uppercase">Shift {s} - Déchets</label>
                           <div className="relative">
                             <input 
                               type="number" 
@@ -339,16 +340,14 @@ const App: React.FC = () => {
                               disabled={userRole !== 'admin'} 
                               value={entry?.[`s${s}_dechets` as keyof DailyEntry] || ''} 
                               onChange={(e) => handleUpdateSaisie(poste.id, s as any, 'dechets', e.target.value)} 
-                              className={`w-full bg-slate-50 dark:bg-slate-900 rounded-lg p-2.5 text-xs font-black dark:text-white outline-none border border-transparent focus:border-primary-500 ${userRole !== 'admin' ? 'opacity-70 grayscale' : ''}`} 
+                              className="w-full bg-slate-50 dark:bg-slate-900 rounded-lg p-2.5 text-xs font-black dark:text-white outline-none border border-transparent focus:border-primary-500" 
                               placeholder="0.00"
                             />
-                            <span className="absolute right-2 top-2.5 text-[8px] font-bold text-slate-400">KG</span>
+                            <span className="absolute right-2 top-2.5 text-[8px] font-bold text-slate-400">kg</span>
                           </div>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[8px] font-black text-slate-400 uppercase flex items-center gap-1">
-                            Shift {s} - Prod.
-                          </label>
+                          <label className="text-[8px] font-black text-slate-400 uppercase">Shift {s} - Prod.</label>
                           <div className="relative">
                             <input 
                               type="number" 
@@ -356,10 +355,10 @@ const App: React.FC = () => {
                               disabled={userRole !== 'admin'} 
                               value={entry?.[`s${s}_produit` as keyof DailyEntry] || ''} 
                               onChange={(e) => handleUpdateSaisie(poste.id, s as any, 'produit', e.target.value)} 
-                              className={`w-full bg-slate-50 dark:bg-slate-900 rounded-lg p-2.5 text-xs font-black dark:text-white outline-none border border-transparent focus:border-primary-500 ${userRole !== 'admin' ? 'opacity-70 grayscale' : ''}`} 
+                              className="w-full bg-slate-50 dark:bg-slate-900 rounded-lg p-2.5 text-xs font-black dark:text-white outline-none border border-transparent focus:border-primary-500" 
                               placeholder="0.00"
                             />
-                            <span className="absolute right-2 top-2.5 text-[8px] font-bold text-slate-400">KG</span>
+                            <span className="absolute right-2 top-2.5 text-[8px] font-bold text-slate-400">kg</span>
                           </div>
                         </div>
                       </div>
@@ -440,9 +439,9 @@ const App: React.FC = () => {
            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border dark:border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="text-center md:text-left">
                 <h2 className="text-2xl font-black dark:text-white tracking-tight">Cibles de Performance</h2>
-                <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-1">Ajustement des taux de perte tolérés</p>
+                <p className="text-slate-400 text-sm font-bold mt-1 uppercase tracking-widest">Ajustement des taux de perte tolérés</p>
               </div>
-              <button onClick={handleSaveSettings} disabled={saving} className="w-full md:w-auto bg-primary-600 hover:bg-primary-700 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:shadow-primary-200 dark:hover:shadow-none active:scale-95 transition-all flex items-center justify-center gap-3">
+              <button onClick={handleSaveSettings} disabled={saving} className="w-full md:w-auto bg-primary-600 hover:bg-primary-700 text-white px-10 py-4 rounded-2xl font-black shadow-xl hover:shadow-primary-200 transition-all flex items-center justify-center gap-3">
                 {saving ? (
                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : <CheckCircleIcon className="w-6 h-6" />}
