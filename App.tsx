@@ -112,12 +112,12 @@ const App: React.FC = () => {
         return existing || {
           date: selectedDate,
           poste_id: p.id,
-          s1_dechets: 0,
-          s1_produit: 0,
-          s2_dechets: 0,
-          s2_produit: 0,
-          s3_dechets: 0,
-          s3_produit: 0,
+          s1_dechets: '0',
+          s1_produit: '0',
+          s2_dechets: '0',
+          s2_produit: '0',
+          s3_dechets: '0',
+          s3_produit: '0',
         };
       });
       setEntries(fullEntries);
@@ -168,7 +168,6 @@ const App: React.FC = () => {
   };
 
   const updateEntry = (posteId: string, shift: 1 | 2 | 3, field: 'dechets' | 'produit', value: string) => {
-    // On stocke la valeur brute (string) pour permettre la saisie de décimales fluides
     setEntries(prev => prev.map(entry => {
       if (entry.poste_id === posteId) {
         return {
@@ -188,7 +187,6 @@ const App: React.FC = () => {
       entries.forEach((entry) => {
         const docId = `${entry.date}_${entry.poste_id}`;
         const docRef = doc(db, "daily_entries", docId);
-        // Conversion explicite en nombres lors de la sauvegarde
         const cleanedEntry = {
           ...entry,
           s1_dechets: Number(entry.s1_dechets) || 0,
@@ -264,91 +262,36 @@ const App: React.FC = () => {
         </div>
       </div>
       <StatsCards data={dashboardData} />
-      {dashboardView === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          {dashboardData.map((item) => (
-            <div key={item.poste_id} className="bg-white dark:bg-slate-800 rounded-3xl border border-white/20 dark:border-slate-700 shadow-lg overflow-hidden flex flex-col hover:shadow-xl transition-shadow">
-              <div className="p-6 pb-2">
-                <h3 className="font-bold text-primary-600 dark:text-primary-400 text-lg mb-2 truncate" title={item.poste_nom}>{item.poste_nom}</h3>
-                <div className="bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md inline-block">
-                  Objectif: {item.objectif}%
-                </div>
-              </div>
-              <div className="p-4 grid grid-cols-3 gap-2 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/10">
-                {[1, 2, 3].map((shift) => (
-                  <div key={shift} className="space-y-2">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase text-center">S{shift}</p>
-                    <div className="space-y-1">
-                      <div className="bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-md p-1.5 text-center shadow-sm">
-                        <p className="text-[7px] text-slate-400 font-bold uppercase mb-0.5 leading-none">Déchets</p>
-                        <p className="text-xs font-bold text-slate-800 dark:text-white">{(item as any)[`s${shift}_dechets`]}</p>
-                      </div>
-                      <div className="bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-md p-1.5 text-center shadow-sm">
-                        <p className="text-[7px] text-slate-400 font-bold uppercase mb-0.5 leading-none">Prod</p>
-                        <p className="text-xs font-bold text-slate-800 dark:text-white">{(item as any)[`s${shift}_produit`]}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="p-4 bg-slate-50/50 dark:bg-slate-900/40 flex justify-between items-center mt-auto">
-                 <div className="flex flex-col">
-                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Taux Global</span>
-                    <span className={`text-xl font-bold ${item.status === 'alerte' ? 'text-rose-500' : item.status === 'attention' ? 'text-amber-500' : 'text-slate-800 dark:text-white'}`}>
-                      {item.taux_global.toFixed(2)}%
-                    </span>
-                 </div>
-                 <div className={`px-2 py-1 rounded text-[9px] font-bold uppercase border shadow-sm ${
-                    item.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800' : 
-                    item.status === 'attention' ? 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800' : 
-                    'bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800'
-                  }`}>
-                    {item.status}
-                  </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        {dashboardData.map((item) => (
+          <div key={item.poste_id} className="bg-white dark:bg-slate-800 rounded-3xl border border-white/20 dark:border-slate-700 shadow-lg overflow-hidden flex flex-col hover:shadow-xl transition-shadow">
+            <div className="p-6 pb-2">
+              <h3 className="font-bold text-primary-600 dark:text-primary-400 text-lg mb-2 truncate">{item.poste_nom}</h3>
+              <div className="bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md inline-block">
+                Obj: {item.objectif}%
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="mb-12 bg-white dark:bg-slate-800 rounded-3xl border border-white/20 dark:border-slate-700 shadow-lg overflow-hidden">
-          <div className="table-container">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider font-bold">
-                <tr>
-                  <th className="px-6 py-4">Poste</th>
-                  <th className="px-6 py-4 text-center">Taux (%)</th>
-                  <th className="px-6 py-4 text-center">Déchets (kg)</th>
-                  <th className="px-6 py-4 text-center">Écart Obj</th>
-                  <th className="px-6 py-4 text-right">Statut</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                {dashboardData.map(item => (
-                  <tr key={item.poste_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-200 text-sm">{item.poste_nom}</td>
-                    <td className="px-6 py-4 text-center font-bold text-slate-800 dark:text-white text-sm">{item.taux_global.toFixed(2)}%</td>
-                    <td className="px-6 py-4 text-center text-slate-500 dark:text-slate-400 text-sm">{item.total_dechets.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`text-sm font-bold ${item.ecart > 0 ? 'text-orange-500' : 'text-emerald-500'}`}>
-                        {item.ecart > 0 ? '+' : ''}{item.ecart.toFixed(2)}%
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        item.status === 'conforme' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' :
-                        item.status === 'attention' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' :
-                        'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400'
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="p-4 grid grid-cols-3 gap-2 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/10">
+              {[1, 2, 3].map((s) => (
+                <div key={s} className="space-y-1">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase text-center">S{s}</p>
+                  <p className="text-xs font-bold text-slate-800 dark:text-white text-center">{(item as any)[`s${s}_dechets`]} / {(item as any)[`s${s}_produit`]}</p>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 bg-slate-50/50 dark:bg-slate-900/40 flex justify-between items-center mt-auto">
+               <span className={`text-xl font-bold ${item.status === 'alerte' ? 'text-rose-500' : item.status === 'attention' ? 'text-amber-500' : 'text-slate-800 dark:text-white'}`}>
+                {item.taux_global.toFixed(2)}%
+               </span>
+               <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                  item.status === 'conforme' ? 'bg-emerald-100 text-emerald-700' : 
+                  item.status === 'attention' ? 'bg-amber-100 text-amber-700' : 
+                  'bg-rose-100 text-rose-700'
+                }`}>{item.status}</div>
+            </div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
       <ChartsSection data={computed} selectedPosteId={filterPosteId} />
     </div>
   );
@@ -374,22 +317,20 @@ const App: React.FC = () => {
           return (
             <div key={poste.id} className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-white/20 dark:border-slate-700 overflow-hidden group">
               <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-primary-50/30 dark:bg-primary-900/10">
-                <h3 className="font-bold text-primary-700 dark:text-primary-400 text-xs truncate" title={poste.nom}>{poste.nom}</h3>
+                <h3 className="font-bold text-primary-700 dark:text-primary-400 text-xs truncate">{poste.nom}</h3>
                 <span className="text-[10px] bg-white dark:bg-slate-700 px-2 py-0.5 rounded-full text-slate-400 font-bold border border-slate-100 dark:border-slate-600">Obj: {poste.objectif_dechet_percent}%</span>
               </div>
               <div className="p-4 space-y-4">
                 {[1, 2, 3].map(shift => (
                   <div key={shift} className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">Shift {shift}</span>
-                    </div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Shift {shift}</p>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <label className="text-[7px] font-bold text-slate-400 uppercase ml-1">Déchets (kg)</label>
                         <input 
                           type="number"
-                          step="0.01"
-                          value={(entry as any)?.[`s${shift}_dechets`] ?? ''}
+                          step="any"
+                          value={entry ? (entry as any)[`s${shift}_dechets`] : ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'dechets', e.target.value)}
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-primary-500 outline-none font-bold text-slate-800 dark:text-white"
                           placeholder="0"
@@ -399,8 +340,8 @@ const App: React.FC = () => {
                         <label className="text-[7px] font-bold text-slate-400 uppercase ml-1">Prod (kg)</label>
                         <input 
                           type="number"
-                          step="0.01"
-                          value={(entry as any)?.[`s${shift}_produit`] ?? ''}
+                          step="any"
+                          value={entry ? (entry as any)[`s${shift}_produit`] : ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'produit', e.target.value)}
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-primary-500 outline-none font-bold text-slate-800 dark:text-white"
                           placeholder="0"
@@ -445,10 +386,10 @@ const App: React.FC = () => {
       <div className="bg-white dark:bg-slate-800 p-12 rounded-3xl shadow-xl border border-white/20 dark:border-slate-700 flex flex-col items-center justify-center text-center min-h-[400px]">
         <ClockIcon className="w-20 h-20 text-indigo-100 dark:text-slate-700 mb-6" />
         <h3 className="font-bold text-2xl text-slate-800 dark:text-white mb-2">Historique de Production</h3>
-        <p className="text-slate-500 dark:text-slate-400 max-w-sm mb-8">Les données sont synchronisées en temps réel via Firestore.</p>
+        <p className="text-slate-500 dark:text-slate-400 max-w-sm mb-8">Les données sont synchronisées via Firestore.</p>
         <div className="flex gap-4">
-          <button onClick={() => exportToJSON(computed, 'eco_data')} className="bg-slate-800 dark:bg-slate-700 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all">Export JSON</button>
-          <button onClick={() => exportToCSV(computed, 'eco_data')} className="bg-primary-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-primary-700 transition-all">Export CSV</button>
+          <button onClick={() => exportToJSON(computed, 'eco_data')} className="bg-slate-800 dark:bg-slate-700 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all">JSON</button>
+          <button onClick={() => exportToCSV(computed, 'eco_data')} className="bg-primary-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-primary-700 transition-all">CSV</button>
         </div>
       </div>
     </div>
@@ -458,24 +399,15 @@ const App: React.FC = () => {
     <div className="animate-in">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-xl border border-white/20 dark:border-slate-700">
-          <h3 className="font-bold text-slate-800 dark:text-white mb-6 text-xl">Profil & Apparence</h3>
-          <div className="space-y-6">
-            <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700">
-              <div className="w-14 h-14 bg-primary-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">{user?.email?.[0].toUpperCase()}</div>
-              <div>
-                <p className="font-bold text-slate-800 dark:text-white">{user?.email}</p>
-                <span className="text-xs text-primary-600 font-bold uppercase tracking-widest">Accès {userRole}</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700">
-              <span className="font-bold text-slate-600 dark:text-slate-400">Mode Sombre</span>
-              <button 
-                onClick={toggleTheme}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isDarkMode ? 'bg-primary-600' : 'bg-slate-300'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
-            </div>
+          <h3 className="font-bold text-slate-800 dark:text-white mb-6 text-xl">Apparence</h3>
+          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700">
+            <span className="font-bold text-slate-600 dark:text-slate-400">Mode Sombre</span>
+            <button 
+              onClick={toggleTheme}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isDarkMode ? 'bg-primary-600' : 'bg-slate-300'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
         </div>
       </div>
@@ -501,19 +433,13 @@ const App: React.FC = () => {
           </div>
           <form onSubmit={handleAuth} className="space-y-5">
             {authError && <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl text-rose-600 text-xs font-bold text-center">{authError}</div>}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-4">Email</label>
-              <input name="email" type="email" required className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-2xl px-5 py-4 text-slate-800 dark:text-white outline-none font-bold focus:ring-2 focus:ring-primary-500" placeholder="admin@eco.com" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-4">Mot de Passe</label>
-              <input name="password" type="password" required className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-2xl px-5 py-4 text-slate-800 dark:text-white outline-none font-bold focus:ring-2 focus:ring-primary-500" placeholder="••••••••" />
-            </div>
-            <button type="submit" className="w-full bg-primary-600 text-white font-bold py-4 rounded-2xl shadow-xl hover:bg-primary-700 transition-all text-sm uppercase tracking-widest mt-4">
+            <input name="email" type="email" required className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-2xl px-5 py-4 font-bold" placeholder="Email" />
+            <input name="password" type="password" required className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-2xl px-5 py-4 font-bold" placeholder="Mot de passe" />
+            <button type="submit" className="w-full bg-primary-600 text-white font-bold py-4 rounded-2xl shadow-xl uppercase tracking-widest mt-4">
               {isSignUp ? 'S\'inscrire' : 'Se Connecter'}
             </button>
             <div className="text-center pt-2">
-              <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-primary-600 font-bold text-xs hover:underline tracking-tight">
+              <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-primary-600 font-bold text-xs tracking-tight">
                 {isSignUp ? 'Déjà inscrit ? Connectez-vous' : 'Pas de compte ? Créez-en un'}
               </button>
             </div>
