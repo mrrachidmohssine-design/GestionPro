@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Poste, DailyEntry, ComputedEntry } from './types';
 import { computeEntryData } from './utils/calculations';
 import { exportToCSV, exportToJSON } from './utils/export';
@@ -72,7 +72,15 @@ const App: React.FC = () => {
   
   const [postes] = useState<Poste[]>(MOCK_POSTES);
   const [entries, setEntries] = useState<DailyEntry[]>([]);
-  const [computed, setComputed] = useState<ComputedEntry[]>([]);
+
+  // Calcul des données dérivées pendant le rendu pour éviter les désynchronisations d'états
+  const computed = useMemo(() => {
+    return entries.map(entry => {
+      const poste = postes.find(p => p.id === entry.poste_id);
+      if (!poste) return null;
+      return computeEntryData(entry, poste);
+    }).filter((item): item is ComputedEntry => item !== null);
+  }, [entries, postes]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -92,50 +100,42 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
+  // Hoisted fetchData function to be accessible by the refresh button and useEffect hook
+  const fetchData = useCallback(async () => {
     if (!user) return;
-    
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const q = query(collection(db, "daily_entries"), where("date", "==", selectedDate));
-        const querySnapshot = await getDocs(q);
-        const fetchedEntries: DailyEntry[] = [];
-        querySnapshot.forEach((doc) => {
-          fetchedEntries.push(doc.data() as DailyEntry);
-        });
+    setLoading(true);
+    try {
+      const q = query(collection(db, "daily_entries"), where("date", "==", selectedDate));
+      const querySnapshot = await getDocs(q);
+      const fetchedEntries: DailyEntry[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedEntries.push(doc.data() as DailyEntry);
+      });
 
-        const fullEntries = postes.map(p => {
-          const existing = fetchedEntries.find(e => e.poste_id === p.id);
-          return existing || {
-            date: selectedDate,
-            poste_id: p.id,
-            s1_dechets: 0,
-            s1_produit: 0,
-            s2_dechets: 0,
-            s2_produit: 0,
-            s3_dechets: 0,
-            s3_produit: 0,
-          };
-        });
-        setEntries(fullEntries);
-      } catch (err) {
-        console.error("Error fetching data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+      const fullEntries = postes.map(p => {
+        const existing = fetchedEntries.find(e => e.poste_id === p.id);
+        return existing || {
+          date: selectedDate,
+          poste_id: p.id,
+          s1_dechets: 0,
+          s1_produit: 0,
+          s2_dechets: 0,
+          s2_produit: 0,
+          s3_dechets: 0,
+          s3_produit: 0,
+        };
+      });
+      setEntries(fullEntries);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [selectedDate, user, postes]);
 
   useEffect(() => {
-    const calculated = entries.map(entry => {
-      const poste = postes.find(p => p.id === entry.poste_id)!;
-      return computeEntryData(entry, poste);
-    });
-    setComputed(calculated);
-  }, [entries, postes]);
+    fetchData();
+  }, [fetchData]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
@@ -173,7 +173,9 @@ const App: React.FC = () => {
   };
 
   const updateEntry = (posteId: string, shift: 1 | 2 | 3, field: 'dechets' | 'produit', value: string) => {
-    const numValue = parseFloat(value) || 0;
+    // On garde la valeur en string ou on la convertit prudemment pour éviter de bloquer la saisie (ex: "." ou "0.")
+    const numValue = value === '' ? 0 : parseFloat(value);
+    
     setEntries(prev => prev.map(entry => {
       if (entry.poste_id === posteId) {
         return {
@@ -191,6 +193,7 @@ const App: React.FC = () => {
     try {
       const batch = writeBatch(db);
       entries.forEach((entry) => {
+        // ID unique combinant date et poste pour éviter les doublons
         const docId = `${entry.date}_${entry.poste_id}`;
         const docRef = doc(db, "daily_entries", docId);
         batch.set(docRef, {
@@ -200,10 +203,10 @@ const App: React.FC = () => {
         });
       });
       await batch.commit();
-      alert("Données sauvegardées avec succès !");
+      alert("Données sauvegardées avec succès dans Firestore !");
     } catch (err) {
       console.error("Error saving data:", err);
-      alert("Erreur lors de la sauvegarde.");
+      alert("Erreur lors de la sauvegarde : " + (err instanceof Error ? err.message : "Erreur inconnue"));
     } finally {
       setSaving(false);
     }
@@ -215,7 +218,6 @@ const App: React.FC = () => {
 
   const renderDashboard = () => (
     <div className="animate-in">
-      {/* Dashboard Header - Matching user image */}
       <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-3xl shadow-xl border border-white/20 dark:border-slate-700 mb-8">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
@@ -250,8 +252,8 @@ const App: React.FC = () => {
               </select>
             </div>
 
-            <button className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2 rounded-lg font-bold shadow-md transition-all text-sm flex items-center gap-2">
-               Calculer & Actualiser
+            <button onClick={fetchData} className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2 rounded-lg font-bold shadow-md transition-all text-sm flex items-center gap-2">
+               Actualiser
             </button>
 
             <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
@@ -291,11 +293,11 @@ const App: React.FC = () => {
                     <div className="space-y-1">
                       <div className="bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-md p-1.5 text-center shadow-sm">
                         <p className="text-[7px] text-slate-400 font-bold uppercase mb-0.5 leading-none">Déchets</p>
-                        <p className="text-xs font-bold text-slate-800 dark:text-white">{item[`s${shift as 1|2|3}_dechets` as keyof ComputedEntry]}</p>
+                        <p className="text-xs font-bold text-slate-800 dark:text-white">{(item as any)[`s${shift}_dechets`]}</p>
                       </div>
                       <div className="bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-md p-1.5 text-center shadow-sm">
                         <p className="text-[7px] text-slate-400 font-bold uppercase mb-0.5 leading-none">Prod</p>
-                        <p className="text-xs font-bold text-slate-800 dark:text-white">{item[`s${shift as 1|2|3}_produit` as keyof ComputedEntry]}</p>
+                        <p className="text-xs font-bold text-slate-800 dark:text-white">{(item as any)[`s${shift}_produit`]}</p>
                       </div>
                     </div>
                   </div>
@@ -399,7 +401,8 @@ const App: React.FC = () => {
                         <label className="text-[7px] font-bold text-slate-400 uppercase ml-1">Déchets (kg)</label>
                         <input 
                           type="number"
-                          value={entry?.[`s${shift}_dechets` as keyof DailyEntry] || ''}
+                          step="0.01"
+                          value={(entry as any)?.[`s${shift}_dechets`] ?? ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'dechets', e.target.value)}
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-primary-500 outline-none font-bold text-slate-800 dark:text-white"
                           placeholder="0"
@@ -409,7 +412,8 @@ const App: React.FC = () => {
                         <label className="text-[7px] font-bold text-slate-400 uppercase ml-1">Prod (kg)</label>
                         <input 
                           type="number"
-                          value={entry?.[`s${shift}_produit` as keyof DailyEntry] || ''}
+                          step="0.01"
+                          value={(entry as any)?.[`s${shift}_produit`] ?? ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'produit', e.target.value)}
                           className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-primary-500 outline-none font-bold text-slate-800 dark:text-white"
                           placeholder="0"
@@ -422,13 +426,15 @@ const App: React.FC = () => {
               <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
                 <div className="flex flex-col">
                   <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Taux Jour</span>
-                  <span className={`font-bold text-lg ${comp?.status === 'alerte' ? 'text-rose-500' : comp?.status === 'attention' ? 'text-amber-500' : 'text-slate-800 dark:text-white'}`}>{comp?.taux_global.toFixed(2)}%</span>
+                  <span className={`font-bold text-lg ${comp?.status === 'alerte' ? 'text-rose-500' : comp?.status === 'attention' ? 'text-amber-500' : 'text-slate-800 dark:text-white'}`}>
+                    {comp ? `${comp.taux_global.toFixed(2)}%` : '0.00%'}
+                  </span>
                 </div>
                 <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${
                   comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
                   comp?.status === 'attention' ? 'bg-amber-50 text-amber-700 border-amber-100' : 
                   'bg-rose-50 text-rose-700 border-rose-100'
-                }`}>{comp?.status}</div>
+                }`}>{comp?.status || 'conforme'}</div>
               </div>
             </div>
           );
