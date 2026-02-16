@@ -12,10 +12,11 @@ const firebaseConfig = {
   appId: "1:102451849433:web:ee036a7603fd4ab12236c8"
 };
 
-// Initialisation de l'application (Singleton)
+// Singleton pattern for Firebase initialization
 const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Exportation des instances de service liées à cette application spécifique
+// Initialize and export services with the explicit app instance
+// This ensures that Auth is registered on the same instance used elsewhere
 export const auth: Auth = getAuth(app);
 export const db: Firestore = getFirestore(app);
 
