@@ -9,7 +9,6 @@ import ChartsSection from './components/ChartsSection';
 import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
   User
@@ -26,9 +25,7 @@ import {
   ChevronRightIcon, 
   ClockIcon,
   Squares2X2Icon,
-  ListBulletIcon,
-  SunIcon,
-  MoonIcon
+  ListBulletIcon
 } from '@heroicons/react/24/solid';
 
 const MOCK_POSTES: Poste[] = [
@@ -55,37 +52,28 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [isSignUp, setIsSignUp] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark' || 
            (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
   
-  const [userRole] = useState<'admin' | 'viewer'>('admin');
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [dashboardView, setDashboardView] = useState<'grid' | 'table'>('grid');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterPosteId, setFilterPosteId] = useState('all');
-  
-  const [postes] = useState<Poste[]>(MOCK_POSTES);
   const [entries, setEntries] = useState<DailyEntry[]>([]);
 
   const computed = useMemo(() => {
     return entries.map(entry => {
-      const poste = postes.find(p => p.id === entry.poste_id);
+      const poste = MOCK_POSTES.find(p => p.id === entry.poste_id);
       if (!poste) return null;
       return computeEntryData(entry, poste);
     }).filter((item): item is ComputedEntry => item !== null);
-  }, [entries, postes]);
+  }, [entries]);
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
+    if (isDarkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
   useEffect(() => {
@@ -102,22 +90,20 @@ const App: React.FC = () => {
     try {
       const q = query(collection(db, "daily_entries"), where("date", "==", selectedDate));
       const querySnapshot = await getDocs(q);
-      const fetchedEntries: DailyEntry[] = [];
-      querySnapshot.forEach((doc) => {
-        fetchedEntries.push(doc.data() as DailyEntry);
-      });
+      const fetched: DailyEntry[] = [];
+      querySnapshot.forEach((doc) => fetched.push(doc.data() as DailyEntry));
 
-      const fullEntries = postes.map(p => {
-        const existing = fetchedEntries.find(e => e.poste_id === p.id);
+      const fullEntries = MOCK_POSTES.map(p => {
+        const existing = fetched.find(e => e.poste_id === p.id);
         return existing || {
           date: selectedDate,
           poste_id: p.id,
-          s1_dechets: 0,
-          s1_produit: 0,
-          s2_dechets: 0,
-          s2_produit: 0,
-          s3_dechets: 0,
-          s3_produit: 0,
+          s1_dechets: '0',
+          s1_produit: '0',
+          s2_dechets: '0',
+          s2_produit: '0',
+          s3_dechets: '0',
+          s3_produit: '0',
         };
       });
       setEntries(fullEntries);
@@ -126,44 +112,16 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, user, postes]);
+  }, [selectedDate, user]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    const form = e.currentTarget as HTMLFormElement;
-    const email = (form.elements.namedItem('email') as HTMLInputElement).value;
-    const password = (form.elements.namedItem('password') as HTMLInputElement).value;
-
-    try {
-      if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
-    } catch (error: any) {
-      setAuthError("Email ou mot de passe incorrect.");
-    }
-  };
-
-  const handleLogout = async () => {
-    await signOut(auth);
-    setUser(null);
-  };
+    if (user) fetchData();
+  }, [fetchData, user]);
 
   const updateEntry = (posteId: string, shift: 1 | 2 | 3, field: 'dechets' | 'produit', value: string) => {
     setEntries(prev => prev.map(entry => {
       if (entry.poste_id === posteId) {
-        return {
-          ...entry,
-          [`s${shift}_${field}`]: value
-        };
+        return { ...entry, [`s${shift}_${field}`]: value };
       }
       return entry;
     }));
@@ -177,7 +135,7 @@ const App: React.FC = () => {
       entries.forEach((entry) => {
         const docId = `${entry.date}_${entry.poste_id}`;
         const docRef = doc(db, "daily_entries", docId);
-        const cleanedEntry = {
+        batch.set(docRef, {
           ...entry,
           s1_dechets: Number(entry.s1_dechets) || 0,
           s1_produit: Number(entry.s1_produit) || 0,
@@ -187,139 +145,106 @@ const App: React.FC = () => {
           s3_produit: Number(entry.s3_produit) || 0,
           updated_at: new Date().toISOString(),
           created_by: user.uid
-        };
-        batch.set(docRef, cleanedEntry);
+        });
       });
       await batch.commit();
-      alert("Données sauvegardées !");
+      alert("Sauvegardé !");
     } catch (err) {
-      alert("Erreur lors de la sauvegarde.");
+      alert("Erreur de sauvegarde");
     } finally {
       setSaving(false);
     }
   };
 
-  const dashboardData = filterPosteId === 'all' 
-    ? computed 
-    : computed.filter(c => c.poste_id === filterPosteId);
-
-  const renderDashboard = () => (
-    <div className="animate-in">
-      {/* Header section identical to layout */}
-      <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-3xl shadow-xl border border-white/20 dark:border-slate-700 mb-8">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <span className="text-3xl">📊</span>
-            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white">Tableau de Bord</h1>
-          </div>
-          <div className="flex gap-4">
-             <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border rounded-lg px-3 py-1.5 text-sm"/>
-             <button onClick={fetchData} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-bold">Actualiser</button>
-          </div>
-        </div>
-      </div>
-      <StatsCards data={dashboardData} />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        {dashboardData.map((item) => (
-          <div key={item.poste_id} className="bg-white dark:bg-slate-800 rounded-3xl border border-white/20 dark:border-slate-700 shadow-lg p-6">
-            <h3 className="font-bold text-primary-600 dark:text-primary-400 text-lg mb-2">{item.poste_nom}</h3>
-            <div className="flex justify-between items-end">
-               <span className="text-2xl font-black text-slate-800 dark:text-white">{item.taux_global.toFixed(2)}%</span>
-               <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${item.status === 'conforme' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{item.status}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <ChartsSection data={computed} selectedPosteId={filterPosteId} />
-    </div>
-  );
-
-  const renderSaisie = () => (
-    <div className="animate-in">
-      <div className="mb-8 bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg border border-white/20 dark:border-slate-700 flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Saisie de Production</h2>
-        <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border rounded-xl px-4 py-2 text-sm font-bold"/>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {postes.map(poste => {
-          const entry = entries.find(e => e.poste_id === poste.id);
-          const comp = computed.find(c => c.poste_id === poste.id);
-          return (
-            <div key={poste.id} className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-white/20 dark:border-slate-700 overflow-hidden">
-              <div className="p-4 border-b dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                <h3 className="font-bold text-primary-700 dark:text-primary-400 text-xs truncate">{poste.nom}</h3>
-                <span className="text-[10px] text-slate-400 font-bold">Obj: {poste.objectif_dechet_percent}%</span>
-              </div>
-              <div className="p-4 space-y-4">
-                {[1, 2, 3].map(shift => (
-                  <div key={shift} className="space-y-1.5">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">Shift {shift}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[7px] font-bold text-slate-400 uppercase">Déchets</label>
-                        <input 
-                          type="number"
-                          step="any"
-                          value={entry ? (entry as any)[`s${shift}_dechets`] : ''}
-                          onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'dechets', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold focus:ring-2 focus:ring-primary-500 outline-none"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[7px] font-bold text-slate-400 uppercase">Prod</label>
-                        <input 
-                          type="number"
-                          step="any"
-                          value={entry ? (entry as any)[`s${shift}_produit`] : ''}
-                          onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'produit', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold focus:ring-2 focus:ring-primary-500 outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="p-4 bg-slate-50/30 dark:bg-slate-900/30 border-t dark:border-slate-700 flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-[8px] text-slate-400 font-bold uppercase">Taux Jour</span>
-                  <span className="font-black text-lg">{comp ? comp.taux_global.toFixed(2) : '0.00'}%</span>
-                </div>
-                <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
-                  {comp?.status || 'conforme'}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-10 flex justify-center pb-8">
-        <button onClick={saveToFirebase} disabled={saving} className="bg-primary-600 text-white px-12 py-4 rounded-2xl font-bold shadow-xl hover:scale-105 transition-all">
-          {saving ? 'EN COURS...' : 'VALIDER TOUT'}
-        </button>
-      </div>
-    </div>
-  );
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-dashboard-light dark:bg-dashboard-dark text-white font-bold">Chargement...</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center text-white font-bold">Chargement...</div>;
 
   if (!user) return (
-    <div className="min-h-screen bg-dashboard-light dark:bg-dashboard-dark flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm w-full">
-        <h1 className="text-2xl font-bold text-center mb-8">EcoTrack Login</h1>
-        <form onSubmit={handleAuth} className="space-y-4">
-          <input name="email" type="email" required className="w-full bg-slate-50 border rounded-xl p-4 font-bold" placeholder="Email"/>
-          <input name="password" type="password" required className="w-full bg-slate-50 border rounded-xl p-4 font-bold" placeholder="Mot de passe"/>
-          <button type="submit" className="w-full bg-primary-600 text-white p-4 rounded-xl font-bold uppercase tracking-widest">Se Connecter</button>
+    <div className="h-screen bg-dashboard-light flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full">
+        <h1 className="text-2xl font-bold text-center mb-6">EcoTrack Login</h1>
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const email = (e.currentTarget.elements.namedItem('email') as HTMLInputElement).value;
+          const password = (e.currentTarget.elements.namedItem('password') as HTMLInputElement).value;
+          try { await signInWithEmailAndPassword(auth, email, password); } 
+          catch { setAuthError("Identifiants invalides"); }
+        }} className="space-y-4">
+          {authError && <div className="text-red-500 text-xs text-center font-bold">{authError}</div>}
+          <input name="email" type="email" placeholder="Email" required className="w-full border p-4 rounded-xl font-bold"/>
+          <input name="password" type="password" placeholder="Mot de passe" required className="w-full border p-4 rounded-xl font-bold"/>
+          <button type="submit" className="w-full bg-primary-600 text-white p-4 rounded-xl font-bold uppercase">Connexion</button>
         </form>
       </div>
     </div>
   );
 
+  const dashboardData = filterPosteId === 'all' ? computed : computed.filter(c => c.poste_id === filterPosteId);
+
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab} userRole={userRole} onLogout={handleLogout} isDarkMode={isDarkMode} toggleTheme={toggleTheme}>
-      {activeTab === 'dashboard' && renderDashboard()}
-      {activeTab === 'saisie' && renderSaisie()}
-      {activeTab === 'settings' && <div className="p-8 bg-white rounded-2xl">Paramètres en cours...</div>}
+    <Layout activeTab={activeTab} setActiveTab={setActiveTab} userRole="admin" onLogout={() => signOut(auth)} isDarkMode={isDarkMode} toggleTheme={() => setIsDarkMode(!isDarkMode)}>
+      {activeTab === 'dashboard' && (
+        <div className="animate-in">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl mb-8 flex justify-between items-center">
+            <h1 className="text-xl font-bold dark:text-white">Tableau de Bord</h1>
+            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border rounded-lg px-3 py-1.5 text-sm"/>
+          </div>
+          <StatsCards data={dashboardData} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {dashboardData.map((item) => (
+              <div key={item.poste_id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg border dark:border-slate-700">
+                <h3 className="font-bold text-primary-600 dark:text-primary-400 mb-2 truncate">{item.poste_nom}</h3>
+                <div className="flex justify-between items-end">
+                   <span className="text-2xl font-black dark:text-white">{item.taux_global.toFixed(2)}%</span>
+                   <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.status === 'conforme' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{item.status}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <ChartsSection data={computed} selectedPosteId={filterPosteId} />
+        </div>
+      )}
+      {activeTab === 'saisie' && (
+        <div className="animate-in">
+          <div className="mb-8 bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg flex justify-between items-center">
+            <h2 className="text-2xl font-bold dark:text-white">Saisie de Production</h2>
+            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border rounded-xl px-4 py-2 text-sm font-bold"/>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {MOCK_POSTES.map(poste => {
+              const entry = entries.find(e => e.poste_id === poste.id);
+              const comp = computed.find(c => c.poste_id === poste.id);
+              return (
+                <div key={poste.id} className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border dark:border-slate-700 overflow-hidden">
+                  <div className="p-4 border-b dark:border-slate-700 flex justify-between bg-slate-50/50 dark:bg-slate-900/50">
+                    <h3 className="font-bold text-primary-700 dark:text-primary-400 text-xs truncate">{poste.nom}</h3>
+                    <span className="text-[10px] text-slate-400 font-bold">Obj: {poste.objectif_dechet_percent}%</span>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {[1, 2, 3].map(shift => (
+                      <div key={shift} className="space-y-1">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase">Shift {shift}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="number" step="any" value={entry ? (entry as any)[`s${shift}_dechets`] : ''} onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'dechets', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border rounded-lg px-2 py-1.5 text-xs font-bold dark:text-white" placeholder="Déchets"/>
+                          <input type="number" step="any" value={entry ? (entry as any)[`s${shift}_produit`] : ''} onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'produit', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border rounded-lg px-2 py-1.5 text-xs font-bold dark:text-white" placeholder="Prod"/>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-4 bg-slate-50/30 dark:bg-slate-900/30 border-t dark:border-slate-700 flex justify-between items-center">
+                    <span className="font-black text-lg dark:text-white">{comp ? comp.taux_global.toFixed(2) : '0.00'}%</span>
+                    <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>{comp?.status || 'conforme'}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-10 flex justify-center pb-8">
+            <button onClick={saveToFirebase} disabled={saving} className="bg-primary-600 text-white px-12 py-4 rounded-2xl font-bold shadow-xl">
+              {saving ? 'EN COURS...' : 'VALIDER'}
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
