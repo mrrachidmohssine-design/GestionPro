@@ -112,12 +112,12 @@ const App: React.FC = () => {
         return existing || {
           date: selectedDate,
           poste_id: p.id,
-          s1_dechets: '0',
-          s1_produit: '0',
-          s2_dechets: '0',
-          s2_produit: '0',
-          s3_dechets: '0',
-          s3_produit: '0',
+          s1_dechets: 0,
+          s1_produit: 0,
+          s2_dechets: 0,
+          s2_produit: 0,
+          s3_dechets: 0,
+          s3_produit: 0,
         };
       });
       setEntries(fullEntries);
@@ -148,17 +148,7 @@ const App: React.FC = () => {
         await signInWithEmailAndPassword(auth, email, password);
       }
     } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        setAuthError("L'utilisateur existe déjà.");
-      } else if (
-        error.code === 'auth/invalid-credential' || 
-        error.code === 'auth/user-not-found' || 
-        error.code === 'auth/wrong-password'
-      ) {
-        setAuthError("Email ou mot de passe incorrect.");
-      } else {
-        setAuthError("Une erreur inattendue est survenue.");
-      }
+      setAuthError("Email ou mot de passe incorrect.");
     }
   };
 
@@ -201,9 +191,8 @@ const App: React.FC = () => {
         batch.set(docRef, cleanedEntry);
       });
       await batch.commit();
-      alert("Données sauvegardées avec succès !");
+      alert("Données sauvegardées !");
     } catch (err) {
-      console.error("Error saving data:", err);
       alert("Erreur lors de la sauvegarde.");
     } finally {
       setSaving(false);
@@ -216,78 +205,27 @@ const App: React.FC = () => {
 
   const renderDashboard = () => (
     <div className="animate-in">
+      {/* Header section identical to layout */}
       <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-3xl shadow-xl border border-white/20 dark:border-slate-700 mb-8">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <span className="text-3xl">📊</span>
-            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white">
-              Suivi Déchets Production - Tableau de Bord
-            </h1>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white">Tableau de Bord</h1>
           </div>
-          <div className="flex flex-wrap items-center justify-center md:justify-end gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Date:</span>
-              <input 
-                type="date" 
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-white dark:bg-slate-700 border border-indigo-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-slate-700 dark:text-slate-200 font-medium text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Filtrer par poste:</span>
-              <select 
-                value={filterPosteId}
-                onChange={(e) => setFilterPosteId(e.target.value)}
-                className="bg-white dark:bg-slate-700 border border-indigo-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-slate-700 dark:text-slate-200 font-medium text-sm focus:ring-2 focus:ring-primary-500 outline-none min-w-[160px]"
-              >
-                <option value="all">Tous les postes</option>
-                {postes.map(p => (
-                  <option key={p.id} value={p.id}>{p.nom}</option>
-                ))}
-              </select>
-            </div>
-            <button onClick={fetchData} className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2 rounded-lg font-bold shadow-md transition-all text-sm flex items-center gap-2">
-               Actualiser
-            </button>
-            <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
-              <button onClick={() => setDashboardView('grid')} className={`p-1.5 rounded-md transition-all ${dashboardView === 'grid' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600' : 'text-slate-400'}`}>
-                <Squares2X2Icon className="w-5 h-5" />
-              </button>
-              <button onClick={() => setDashboardView('table')} className={`p-1.5 rounded-md transition-all ${dashboardView === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600' : 'text-slate-400'}`}>
-                <ListBulletIcon className="w-5 h-5" />
-              </button>
-            </div>
+          <div className="flex gap-4">
+             <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border rounded-lg px-3 py-1.5 text-sm"/>
+             <button onClick={fetchData} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-bold">Actualiser</button>
           </div>
         </div>
       </div>
       <StatsCards data={dashboardData} />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         {dashboardData.map((item) => (
-          <div key={item.poste_id} className="bg-white dark:bg-slate-800 rounded-3xl border border-white/20 dark:border-slate-700 shadow-lg overflow-hidden flex flex-col hover:shadow-xl transition-shadow">
-            <div className="p-6 pb-2">
-              <h3 className="font-bold text-primary-600 dark:text-primary-400 text-lg mb-2 truncate">{item.poste_nom}</h3>
-              <div className="bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md inline-block">
-                Obj: {item.objectif}%
-              </div>
-            </div>
-            <div className="p-4 grid grid-cols-3 gap-2 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/10">
-              {[1, 2, 3].map((s) => (
-                <div key={s} className="space-y-1">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase text-center">S{s}</p>
-                  <p className="text-xs font-bold text-slate-800 dark:text-white text-center">{(item as any)[`s${s}_dechets`]} / {(item as any)[`s${s}_produit`]}</p>
-                </div>
-              ))}
-            </div>
-            <div className="p-4 bg-slate-50/50 dark:bg-slate-900/40 flex justify-between items-center mt-auto">
-               <span className={`text-xl font-bold ${item.status === 'alerte' ? 'text-rose-500' : item.status === 'attention' ? 'text-amber-500' : 'text-slate-800 dark:text-white'}`}>
-                {item.taux_global.toFixed(2)}%
-               </span>
-               <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                  item.status === 'conforme' ? 'bg-emerald-100 text-emerald-700' : 
-                  item.status === 'attention' ? 'bg-amber-100 text-amber-700' : 
-                  'bg-rose-100 text-rose-700'
-                }`}>{item.status}</div>
+          <div key={item.poste_id} className="bg-white dark:bg-slate-800 rounded-3xl border border-white/20 dark:border-slate-700 shadow-lg p-6">
+            <h3 className="font-bold text-primary-600 dark:text-primary-400 text-lg mb-2">{item.poste_nom}</h3>
+            <div className="flex justify-between items-end">
+               <span className="text-2xl font-black text-slate-800 dark:text-white">{item.taux_global.toFixed(2)}%</span>
+               <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${item.status === 'conforme' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{item.status}</div>
             </div>
           </div>
         ))}
@@ -298,27 +236,19 @@ const App: React.FC = () => {
 
   const renderSaisie = () => (
     <div className="animate-in">
-      <div className="mb-8 flex justify-between items-center bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg border border-white/20 dark:border-slate-700">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Saisie de Production</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Enregistrement pour le {new Date(selectedDate).toLocaleDateString('fr-FR')}</p>
-        </div>
-        <input 
-          type="date" 
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold text-sm outline-none shadow-inner"
-        />
+      <div className="mb-8 bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg border border-white/20 dark:border-slate-700 flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Saisie de Production</h2>
+        <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border rounded-xl px-4 py-2 text-sm font-bold"/>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {postes.map(poste => {
           const entry = entries.find(e => e.poste_id === poste.id);
           const comp = computed.find(c => c.poste_id === poste.id);
           return (
-            <div key={poste.id} className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-white/20 dark:border-slate-700 overflow-hidden group">
-              <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-primary-50/30 dark:bg-primary-900/10">
+            <div key={poste.id} className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-white/20 dark:border-slate-700 overflow-hidden">
+              <div className="p-4 border-b dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                 <h3 className="font-bold text-primary-700 dark:text-primary-400 text-xs truncate">{poste.nom}</h3>
-                <span className="text-[10px] bg-white dark:bg-slate-700 px-2 py-0.5 rounded-full text-slate-400 font-bold border border-slate-100 dark:border-slate-600">Obj: {poste.objectif_dechet_percent}%</span>
+                <span className="text-[10px] text-slate-400 font-bold">Obj: {poste.objectif_dechet_percent}%</span>
               </div>
               <div className="p-4 space-y-4">
                 {[1, 2, 3].map(shift => (
@@ -326,135 +256,70 @@ const App: React.FC = () => {
                     <p className="text-[9px] font-bold text-slate-400 uppercase">Shift {shift}</p>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <label className="text-[7px] font-bold text-slate-400 uppercase ml-1">Déchets (kg)</label>
+                        <label className="text-[7px] font-bold text-slate-400 uppercase">Déchets</label>
                         <input 
                           type="number"
                           step="any"
                           value={entry ? (entry as any)[`s${shift}_dechets`] : ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'dechets', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-primary-500 outline-none font-bold text-slate-800 dark:text-white"
-                          placeholder="0"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold focus:ring-2 focus:ring-primary-500 outline-none"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[7px] font-bold text-slate-400 uppercase ml-1">Prod (kg)</label>
+                        <label className="text-[7px] font-bold text-slate-400 uppercase">Prod</label>
                         <input 
                           type="number"
                           step="any"
                           value={entry ? (entry as any)[`s${shift}_produit`] : ''}
                           onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'produit', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:ring-2 focus:ring-primary-500 outline-none font-bold text-slate-800 dark:text-white"
-                          placeholder="0"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold focus:ring-2 focus:ring-primary-500 outline-none"
                         />
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
+              <div className="p-4 bg-slate-50/30 dark:bg-slate-900/30 border-t dark:border-slate-700 flex justify-between items-center">
                 <div className="flex flex-col">
-                  <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Taux Jour</span>
-                  <span className={`font-bold text-lg ${comp?.status === 'alerte' ? 'text-rose-500' : comp?.status === 'attention' ? 'text-amber-500' : 'text-slate-800 dark:text-white'}`}>
-                    {comp ? `${comp.taux_global.toFixed(2)}%` : '0.00%'}
-                  </span>
+                  <span className="text-[8px] text-slate-400 font-bold uppercase">Taux Jour</span>
+                  <span className="font-black text-lg">{comp ? comp.taux_global.toFixed(2) : '0.00'}%</span>
                 </div>
-                <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${
-                  comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                  comp?.status === 'attention' ? 'bg-amber-50 text-amber-700 border-amber-100' : 
-                  'bg-rose-50 text-rose-700 border-rose-100'
-                }`}>{comp?.status || 'conforme'}</div>
+                <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                  {comp?.status || 'conforme'}
+                </div>
               </div>
             </div>
           );
         })}
       </div>
       <div className="mt-10 flex justify-center pb-8">
-        <button 
-          onClick={saveToFirebase}
-          disabled={saving}
-          className={`bg-primary-600 hover:bg-primary-700 text-white px-12 py-5 rounded-2xl font-bold shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3 text-lg ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          {saving ? 'SAUVEGARDE...' : 'VALIDER & SAUVEGARDER'}
-          {!saving && <ChevronRightIcon className="w-6 h-6" />}
+        <button onClick={saveToFirebase} disabled={saving} className="bg-primary-600 text-white px-12 py-4 rounded-2xl font-bold shadow-xl hover:scale-105 transition-all">
+          {saving ? 'EN COURS...' : 'VALIDER TOUT'}
         </button>
       </div>
     </div>
   );
 
-  const renderHistory = () => (
-    <div className="animate-in">
-      <div className="bg-white dark:bg-slate-800 p-12 rounded-3xl shadow-xl border border-white/20 dark:border-slate-700 flex flex-col items-center justify-center text-center min-h-[400px]">
-        <ClockIcon className="w-20 h-20 text-indigo-100 dark:text-slate-700 mb-6" />
-        <h3 className="font-bold text-2xl text-slate-800 dark:text-white mb-2">Historique de Production</h3>
-        <p className="text-slate-500 dark:text-slate-400 max-w-sm mb-8">Les données sont synchronisées via Firestore.</p>
-        <div className="flex gap-4">
-          <button onClick={() => exportToJSON(computed, 'eco_data')} className="bg-slate-800 dark:bg-slate-700 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all">JSON</button>
-          <button onClick={() => exportToCSV(computed, 'eco_data')} className="bg-primary-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-primary-700 transition-all">CSV</button>
-        </div>
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-dashboard-light dark:bg-dashboard-dark text-white font-bold">Chargement...</div>;
+
+  if (!user) return (
+    <div className="min-h-screen bg-dashboard-light dark:bg-dashboard-dark flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-sm w-full">
+        <h1 className="text-2xl font-bold text-center mb-8">EcoTrack Login</h1>
+        <form onSubmit={handleAuth} className="space-y-4">
+          <input name="email" type="email" required className="w-full bg-slate-50 border rounded-xl p-4 font-bold" placeholder="Email"/>
+          <input name="password" type="password" required className="w-full bg-slate-50 border rounded-xl p-4 font-bold" placeholder="Mot de passe"/>
+          <button type="submit" className="w-full bg-primary-600 text-white p-4 rounded-xl font-bold uppercase tracking-widest">Se Connecter</button>
+        </form>
       </div>
     </div>
   );
-
-  const renderSettings = () => (
-    <div className="animate-in">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-xl border border-white/20 dark:border-slate-700">
-          <h3 className="font-bold text-slate-800 dark:text-white mb-6 text-xl">Apparence</h3>
-          <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700">
-            <span className="font-bold text-slate-600 dark:text-slate-400">Mode Sombre</span>
-            <button 
-              onClick={toggleTheme}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isDarkMode ? 'bg-primary-600' : 'bg-slate-300'}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-dashboard-light dark:bg-dashboard-dark">
-      <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
-    </div>
-  );
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-dashboard-light dark:bg-dashboard-dark flex flex-col items-center justify-center p-4">
-        <div className="bg-white dark:bg-slate-800 p-10 rounded-[2.5rem] shadow-2xl max-w-md w-full border border-white/20">
-          <div className="flex flex-col items-center mb-10">
-            <div className="w-20 h-20 bg-primary-600 rounded-2xl flex items-center justify-center shadow-xl mb-6">
-              <span className="text-white text-4xl font-black">E</span>
-            </div>
-            <h1 className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">EcoTrack</h1>
-            <p className="text-slate-400 text-sm font-semibold uppercase mt-2">{isSignUp ? 'Créer un compte' : 'Connexion'}</p>
-          </div>
-          <form onSubmit={handleAuth} className="space-y-5">
-            {authError && <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl text-rose-600 text-xs font-bold text-center">{authError}</div>}
-            <input name="email" type="email" required className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-2xl px-5 py-4 font-bold" placeholder="Email" />
-            <input name="password" type="password" required className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-2xl px-5 py-4 font-bold" placeholder="Mot de passe" />
-            <button type="submit" className="w-full bg-primary-600 text-white font-bold py-4 rounded-2xl shadow-xl uppercase tracking-widest mt-4">
-              {isSignUp ? 'S\'inscrire' : 'Se Connecter'}
-            </button>
-            <div className="text-center pt-2">
-              <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-primary-600 font-bold text-xs tracking-tight">
-                {isSignUp ? 'Déjà inscrit ? Connectez-vous' : 'Pas de compte ? Créez-en un'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab} userRole={userRole} onLogout={handleLogout} isDarkMode={isDarkMode} toggleTheme={toggleTheme}>
       {activeTab === 'dashboard' && renderDashboard()}
       {activeTab === 'saisie' && renderSaisie()}
-      {activeTab === 'history' && renderHistory()}
-      {activeTab === 'settings' && renderSettings()}
+      {activeTab === 'settings' && <div className="p-8 bg-white rounded-2xl">Paramètres en cours...</div>}
     </Layout>
   );
 };
