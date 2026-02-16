@@ -24,10 +24,7 @@ import {
 } from 'firebase/firestore';
 import { 
   ChevronRightIcon, 
-  ArrowPathIcon, 
-  DocumentArrowDownIcon,
   ClockIcon,
-  Cog6ToothIcon,
   Squares2X2Icon,
   ListBulletIcon,
   SunIcon,
@@ -64,7 +61,7 @@ const App: React.FC = () => {
            (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
   
-  const [userRole, setUserRole] = useState<'admin' | 'viewer'>('admin');
+  const [userRole] = useState<'admin' | 'viewer'>('admin');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [dashboardView, setDashboardView] = useState<'grid' | 'table'>('grid');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -73,7 +70,6 @@ const App: React.FC = () => {
   const [postes] = useState<Poste[]>(MOCK_POSTES);
   const [entries, setEntries] = useState<DailyEntry[]>([]);
 
-  // Calcul des données dérivées pendant le rendu pour éviter les désynchronisations d'états
   const computed = useMemo(() => {
     return entries.map(entry => {
       const poste = postes.find(p => p.id === entry.poste_id);
@@ -100,7 +96,6 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Hoisted fetchData function to be accessible by the refresh button and useEffect hook
   const fetchData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -173,14 +168,12 @@ const App: React.FC = () => {
   };
 
   const updateEntry = (posteId: string, shift: 1 | 2 | 3, field: 'dechets' | 'produit', value: string) => {
-    // On garde la valeur en string ou on la convertit prudemment pour éviter de bloquer la saisie (ex: "." ou "0.")
-    const numValue = value === '' ? 0 : parseFloat(value);
-    
+    // On stocke la valeur brute (string) pour permettre la saisie de décimales fluides
     setEntries(prev => prev.map(entry => {
       if (entry.poste_id === posteId) {
         return {
           ...entry,
-          [`s${shift}_${field}`]: numValue
+          [`s${shift}_${field}`]: value
         };
       }
       return entry;
@@ -193,20 +186,27 @@ const App: React.FC = () => {
     try {
       const batch = writeBatch(db);
       entries.forEach((entry) => {
-        // ID unique combinant date et poste pour éviter les doublons
         const docId = `${entry.date}_${entry.poste_id}`;
         const docRef = doc(db, "daily_entries", docId);
-        batch.set(docRef, {
+        // Conversion explicite en nombres lors de la sauvegarde
+        const cleanedEntry = {
           ...entry,
+          s1_dechets: Number(entry.s1_dechets) || 0,
+          s1_produit: Number(entry.s1_produit) || 0,
+          s2_dechets: Number(entry.s2_dechets) || 0,
+          s2_produit: Number(entry.s2_produit) || 0,
+          s3_dechets: Number(entry.s3_dechets) || 0,
+          s3_produit: Number(entry.s3_produit) || 0,
           updated_at: new Date().toISOString(),
           created_by: user.uid
-        });
+        };
+        batch.set(docRef, cleanedEntry);
       });
       await batch.commit();
-      alert("Données sauvegardées avec succès dans Firestore !");
+      alert("Données sauvegardées avec succès !");
     } catch (err) {
       console.error("Error saving data:", err);
-      alert("Erreur lors de la sauvegarde : " + (err instanceof Error ? err.message : "Erreur inconnue"));
+      alert("Erreur lors de la sauvegarde.");
     } finally {
       setSaving(false);
     }
@@ -226,7 +226,6 @@ const App: React.FC = () => {
               Suivi Déchets Production - Tableau de Bord
             </h1>
           </div>
-          
           <div className="flex flex-wrap items-center justify-center md:justify-end gap-4">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Date:</span>
@@ -237,7 +236,6 @@ const App: React.FC = () => {
                 className="bg-white dark:bg-slate-700 border border-indigo-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-slate-700 dark:text-slate-200 font-medium text-sm focus:ring-2 focus:ring-primary-500 outline-none"
               />
             </div>
-            
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Filtrer par poste:</span>
               <select 
@@ -251,31 +249,21 @@ const App: React.FC = () => {
                 ))}
               </select>
             </div>
-
             <button onClick={fetchData} className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2 rounded-lg font-bold shadow-md transition-all text-sm flex items-center gap-2">
                Actualiser
             </button>
-
             <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
-              <button 
-                onClick={() => setDashboardView('grid')}
-                className={`p-1.5 rounded-md transition-all ${dashboardView === 'grid' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600' : 'text-slate-400'}`}
-              >
+              <button onClick={() => setDashboardView('grid')} className={`p-1.5 rounded-md transition-all ${dashboardView === 'grid' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600' : 'text-slate-400'}`}>
                 <Squares2X2Icon className="w-5 h-5" />
               </button>
-              <button 
-                onClick={() => setDashboardView('table')}
-                className={`p-1.5 rounded-md transition-all ${dashboardView === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600' : 'text-slate-400'}`}
-              >
+              <button onClick={() => setDashboardView('table')} className={`p-1.5 rounded-md transition-all ${dashboardView === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600' : 'text-slate-400'}`}>
                 <ListBulletIcon className="w-5 h-5" />
               </button>
             </div>
           </div>
         </div>
       </div>
-
       <StatsCards data={dashboardData} />
-
       {dashboardView === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           {dashboardData.map((item) => (
@@ -379,7 +367,6 @@ const App: React.FC = () => {
           className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2 text-slate-700 dark:text-white font-bold text-sm outline-none shadow-inner"
         />
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {postes.map(poste => {
           const entry = entries.find(e => e.poste_id === poste.id);
@@ -472,7 +459,6 @@ const App: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-xl border border-white/20 dark:border-slate-700">
           <h3 className="font-bold text-slate-800 dark:text-white mb-6 text-xl">Profil & Apparence</h3>
-          
           <div className="space-y-6">
             <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700">
               <div className="w-14 h-14 bg-primary-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">{user?.email?.[0].toUpperCase()}</div>
@@ -481,7 +467,6 @@ const App: React.FC = () => {
                 <span className="text-xs text-primary-600 font-bold uppercase tracking-widest">Accès {userRole}</span>
               </div>
             </div>
-
             <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700">
               <span className="font-bold text-slate-600 dark:text-slate-400">Mode Sombre</span>
               <button 
@@ -514,7 +499,6 @@ const App: React.FC = () => {
             <h1 className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">EcoTrack</h1>
             <p className="text-slate-400 text-sm font-semibold uppercase mt-2">{isSignUp ? 'Créer un compte' : 'Connexion'}</p>
           </div>
-          
           <form onSubmit={handleAuth} className="space-y-5">
             {authError && <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl text-rose-600 text-xs font-bold text-center">{authError}</div>}
             <div className="space-y-1">
@@ -540,14 +524,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout 
-      activeTab={activeTab} 
-      setActiveTab={setActiveTab} 
-      userRole={userRole} 
-      onLogout={handleLogout}
-      isDarkMode={isDarkMode}
-      toggleTheme={toggleTheme}
-    >
+    <Layout activeTab={activeTab} setActiveTab={setActiveTab} userRole={userRole} onLogout={handleLogout} isDarkMode={isDarkMode} toggleTheme={toggleTheme}>
       {activeTab === 'dashboard' && renderDashboard()}
       {activeTab === 'saisie' && renderSaisie()}
       {activeTab === 'history' && renderHistory()}

@@ -7,12 +7,19 @@ export const calculateTaux = (dechets: number, produit: number): number => {
 };
 
 export const computeEntryData = (entry: DailyEntry, poste: Poste): ComputedEntry => {
-  const s1_taux = calculateTaux(entry.s1_dechets, entry.s1_produit);
-  const s2_taux = calculateTaux(entry.s2_dechets, entry.s2_produit);
-  const s3_taux = calculateTaux(entry.s3_dechets, entry.s3_produit);
+  const s1_dechets = Number(entry.s1_dechets) || 0;
+  const s1_produit = Number(entry.s1_produit) || 0;
+  const s2_dechets = Number(entry.s2_dechets) || 0;
+  const s2_produit = Number(entry.s2_produit) || 0;
+  const s3_dechets = Number(entry.s3_dechets) || 0;
+  const s3_produit = Number(entry.s3_produit) || 0;
 
-  const total_dechets = Number(entry.s1_dechets) + Number(entry.s2_dechets) + Number(entry.s3_dechets);
-  const total_produit = Number(entry.s1_produit) + Number(entry.s2_produit) + Number(entry.s3_produit);
+  const s1_taux = calculateTaux(s1_dechets, s1_produit);
+  const s2_taux = calculateTaux(s2_dechets, s2_produit);
+  const s3_taux = calculateTaux(s3_dechets, s3_produit);
+
+  const total_dechets = s1_dechets + s2_dechets + s3_dechets;
+  const total_produit = s1_produit + s2_produit + s3_produit;
   const taux_global = calculateTaux(total_dechets, total_produit);
   
   const ecart = taux_global - poste.objectif_dechet_percent;

@@ -18,12 +18,12 @@ export interface DailyEntry {
   id?: string;
   date: string;
   poste_id: string;
-  s1_dechets: number;
-  s1_produit: number;
-  s2_dechets: number;
-  s2_produit: number;
-  s3_dechets: number;
-  s3_produit: number;
+  s1_dechets: number | string;
+  s1_produit: number | string;
+  s2_dechets: number | string;
+  s2_produit: number | string;
+  s3_dechets: number | string;
+  s3_produit: number | string;
   created_by?: string;
   updated_at?: string;
 }
