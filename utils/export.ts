@@ -8,6 +8,7 @@ export const exportToCSV = (data: ComputedEntry[], filename: string) => {
     'Total Déchets', 'Total Prod', 'Taux Global', 'Écart', 'Statut'
   ];
 
+  // Fix: Properties s1_taux, s2_taux, and s3_taux are now recognized on the ComputedEntry type
   const rows = data.map(d => [
     d.date, d.poste_nom, d.objectif, d.s1_dechets, d.s1_produit, d.s1_taux.toFixed(2),
     d.s2_dechets, d.s2_produit, d.s2_taux.toFixed(2), d.s3_dechets, d.s3_produit, d.s3_taux.toFixed(2),

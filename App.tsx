@@ -2,18 +2,21 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Poste, DailyEntry, ComputedEntry, Role } from './types';
 import { computeEntryData } from './utils/calculations';
+import { exportToCSV, exportToJSON } from './utils/export';
 import Layout from './components/Layout';
 import StatsCards from './components/StatsCards';
 import ChartsSection from './components/ChartsSection';
 import { auth, db } from './firebase';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { collection, doc, getDocs, getDoc, query, where, writeBatch, setDoc } from 'firebase/firestore';
 import { 
   ChevronRightIcon, 
-  ClockIcon, 
   FunnelIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon
+  ArrowDownTrayIcon,
+  CalendarDaysIcon,
+  LockClosedIcon,
+  UserIcon
 } from '@heroicons/react/24/solid';
 
 const DEFAULT_POSTES: Poste[] = [
@@ -37,7 +40,7 @@ const DEFAULT_POSTES: Poste[] = [
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<Role>('viewer');
+  const [userRole, setUserRole] = useState<Role>('viewer');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -50,7 +53,7 @@ const App: React.FC = () => {
   const [postes, setPostes] = useState<Poste[]>(DEFAULT_POSTES);
   const [entries, setEntries] = useState<DailyEntry[]>([]);
 
-  // Memoized computation logic
+  // Real-time computations
   const computed = useMemo(() => {
     return entries.map(entry => {
       const poste = postes.find(p => p.id === entry.poste_id);
@@ -59,290 +62,277 @@ const App: React.FC = () => {
     }).filter((item): item is ComputedEntry => item !== null);
   }, [entries, postes]);
 
-  // Handle Dark Mode
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
-  // Auth & Role Detection
+  // Auth Logic: Admin vs Anonymous Viewer
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        // Fetch role from Firestore
-        try {
-          const profileDoc = await getDoc(doc(db, "profiles", currentUser.uid));
-          if (profileDoc.exists()) {
-            setRole(profileDoc.data().role as Role);
-          } else {
-            // Default to viewer and create profile
-            await setDoc(doc(db, "profiles", currentUser.uid), { email: currentUser.email, role: 'viewer' });
-            setRole('viewer');
-          }
-        } catch (e) { console.error("Error role:", e); }
+        if (currentUser.isAnonymous) {
+          setUserRole('viewer');
+        } else {
+          // Check role in Firestore for non-anonymous users
+          const snap = await getDoc(doc(db, "profiles", currentUser.uid));
+          setUserRole(snap.exists() ? snap.data().role : 'viewer');
+        }
       } else {
         setUser(null);
-        setRole('viewer');
+        setUserRole('viewer');
       }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // Fetch Data (Postes & Entries)
   const fetchData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      // 1. Fetch Postes (Settings)
       const postesSnap = await getDocs(collection(db, "postes"));
       const fetchedPostes: Poste[] = [];
-      postesSnap.forEach(doc => fetchedPostes.push({ ...doc.data() as Poste, id: doc.id }));
+      postesSnap.forEach(d => fetchedPostes.push({ ...d.data() as Poste, id: d.id }));
       if (fetchedPostes.length > 0) setPostes(fetchedPostes);
 
-      // 2. Fetch Entries
       const q = query(collection(db, "daily_entries"), where("date", "==", selectedDate));
-      const querySnapshot = await getDocs(q);
+      const entrySnap = await getDocs(q);
       const fetchedEntries: DailyEntry[] = [];
-      querySnapshot.forEach((doc) => fetchedEntries.push(doc.data() as DailyEntry));
+      entrySnap.forEach(d => fetchedEntries.push(d.data() as DailyEntry));
 
       const finalEntries = (fetchedPostes.length > 0 ? fetchedPostes : DEFAULT_POSTES).map(p => {
         const existing = fetchedEntries.find(e => e.poste_id === p.id);
         return existing || {
           date: selectedDate,
           poste_id: p.id,
-          s1_dechets: '0', s1_produit: '0',
-          s2_dechets: '0', s2_produit: '0',
-          s3_dechets: '0', s3_produit: '0',
+          s1_dechets: 0, s1_produit: 0,
+          s2_dechets: 0, s2_produit: 0,
+          s3_dechets: 0, s3_produit: 0,
         };
       });
       setEntries(finalEntries);
-    } catch (err) { console.error("Fetch error:", err); } 
-    finally { setLoading(false); }
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   }, [selectedDate, user]);
 
   useEffect(() => { if (user) fetchData(); }, [fetchData, user]);
 
-  // Saisie Handlers
-  const updateEntryValue = (posteId: string, shift: 1 | 2 | 3, field: 'dechets' | 'produit', value: string) => {
-    if (role !== 'admin') return;
-    setEntries(prev => prev.map(entry => {
-      if (entry.poste_id === posteId) {
-        return { ...entry, [`s${shift}_${field}`]: value };
-      }
-      return entry;
-    }));
+  // Actions
+  const handleUpdateSaisie = (posteId: string, shift: 1|2|3, field: 'dechets'|'produit', val: string) => {
+    if (userRole !== 'admin') return;
+    setEntries(prev => prev.map(e => e.poste_id === posteId ? { ...e, [`s${shift}_${field}`]: val } : e));
   };
 
-  const saveEntries = async () => {
-    if (role !== 'admin') return;
+  const handleSaveSaisie = async () => {
+    if (userRole !== 'admin') return;
     setSaving(true);
     try {
       const batch = writeBatch(db);
-      entries.forEach((entry) => {
-        const docId = `${entry.date}_${entry.poste_id}`;
-        batch.set(doc(db, "daily_entries", docId), {
-          ...entry,
-          updated_at: new Date().toISOString(),
-          created_by: user?.uid
-        });
+      entries.forEach(e => {
+        const id = `${e.date}_${e.poste_id}`;
+        batch.set(doc(db, "daily_entries", id), { ...e, updated_at: new Date().toISOString() });
       });
       await batch.commit();
-      alert("Saisie enregistrée !");
-    } catch (err) { alert("Erreur lors de la sauvegarde."); }
-    finally { setSaving(false); }
+      alert("Données sauvegardées !");
+    } catch (e) { alert("Erreur de sauvegarde"); } finally { setSaving(false); }
   };
 
-  // Settings Handlers
-  const updatePosteObjective = (id: string, newObjective: string) => {
-    setPostes(prev => prev.map(p => p.id === id ? { ...p, objectif_dechet_percent: parseFloat(newObjective) || 0 } : p));
-  };
-
-  const saveSettings = async () => {
+  const handleSaveSettings = async () => {
+    if (userRole !== 'admin') return;
     setSaving(true);
     try {
       const batch = writeBatch(db);
-      postes.forEach(p => {
-        batch.set(doc(db, "postes", p.id), p);
-      });
+      postes.forEach(p => batch.set(doc(db, "postes", p.id), p));
       await batch.commit();
       alert("Objectifs mis à jour !");
-    } catch (err) { alert("Erreur sauvegarde paramètres."); }
-    finally { setSaving(false); }
+    } catch (e) { alert("Erreur"); } finally { setSaving(false); }
   };
 
-  if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-dashboard-light dark:bg-dashboard-dark">
-      <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
+  if (loading) return <div className="h-screen flex items-center justify-center dark:text-white">Chargement...</div>;
 
   if (!user) return (
-    <div className="h-screen bg-dashboard-light flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full animate-in">
-        <h1 className="text-2xl font-black text-center mb-8 text-slate-800 tracking-tight">EcoTrack Login</h1>
+    <div className="h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full space-y-6">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-primary-600 rounded-2xl mx-auto flex items-center justify-center shadow-lg mb-4">
+            <span className="text-white text-3xl font-bold">E</span>
+          </div>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">EcoTrack v2.0</h1>
+        </div>
+        
         <form onSubmit={async (e) => {
           e.preventDefault();
           const email = (e.currentTarget.elements.namedItem('email') as HTMLInputElement).value;
-          const password = (e.currentTarget.elements.namedItem('password') as HTMLInputElement).value;
-          try { await signInWithEmailAndPassword(auth, email, password); } 
-          catch { setAuthError("Identifiants incorrects"); }
+          const pass = (e.currentTarget.elements.namedItem('password') as HTMLInputElement).value;
+          try { await signInWithEmailAndPassword(auth, email, pass); } catch { setAuthError("Identifiants incorrects"); }
         }} className="space-y-4">
-          {authError && <div className="bg-rose-50 text-rose-600 p-3 rounded-xl text-xs text-center font-bold">{authError}</div>}
-          <input name="email" type="email" placeholder="Email" required className="w-full border p-4 rounded-xl font-bold bg-slate-50"/>
-          <input name="password" type="password" placeholder="Mot de passe" required className="w-full border p-4 rounded-xl font-bold bg-slate-50"/>
-          <button type="submit" className="w-full bg-primary-600 text-white p-4 rounded-xl font-bold uppercase shadow-lg shadow-primary-100">Connexion</button>
+          {authError && <div className="text-rose-500 text-xs text-center font-bold">{authError}</div>}
+          <div className="relative">
+            <UserIcon className="w-5 h-5 absolute left-4 top-4 text-slate-400" />
+            <input name="email" type="email" placeholder="Email Admin" required className="w-full bg-slate-50 border-none p-4 pl-12 rounded-xl font-bold focus:ring-2 focus:ring-primary-500 outline-none"/>
+          </div>
+          <div className="relative">
+            <LockClosedIcon className="w-5 h-5 absolute left-4 top-4 text-slate-400" />
+            <input name="password" type="password" placeholder="Mot de passe" required className="w-full bg-slate-50 border-none p-4 pl-12 rounded-xl font-bold focus:ring-2 focus:ring-primary-500 outline-none"/>
+          </div>
+          <button type="submit" className="w-full bg-primary-600 text-white p-4 rounded-xl font-bold shadow-lg active:scale-95 transition-all">Connexion Admin</button>
         </form>
+
+        <div className="relative flex items-center py-2">
+          <div className="flex-grow border-t border-slate-200"></div>
+          <span className="flex-shrink mx-4 text-slate-400 text-xs font-bold uppercase">Ou</span>
+          <div className="flex-grow border-t border-slate-200"></div>
+        </div>
+
+        <button onClick={() => signInAnonymously(auth)} className="w-full bg-slate-800 text-white p-4 rounded-xl font-bold hover:bg-slate-900 transition-all flex items-center justify-center gap-2">
+          Accès Visiteur (Lecture seule)
+        </button>
       </div>
     </div>
   );
 
-  const dashboardData = filterPosteId === 'all' ? computed : computed.filter(c => c.poste_id === filterPosteId);
+  const filteredData = filterPosteId === 'all' ? computed : computed.filter(c => c.poste_id === filterPosteId);
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab} userRole={role} onLogout={() => signOut(auth)} isDarkMode={isDarkMode} toggleTheme={() => setIsDarkMode(!isDarkMode)}>
+    <Layout activeTab={activeTab} setActiveTab={setActiveTab} userRole={userRole} onLogout={() => signOut(auth)} isDarkMode={isDarkMode} toggleTheme={() => setIsDarkMode(!isDarkMode)}>
       {activeTab === 'dashboard' && (
-        <div className="animate-in space-y-8">
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
-            <h1 className="text-xl font-bold dark:text-white flex items-center gap-2">
-              <FunnelIcon className="w-5 h-5 text-primary-500" />
-              Vue d'ensemble
-            </h1>
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <select 
-                value={filterPosteId} 
-                onChange={(e) => setFilterPosteId(e.target.value)}
-                className="flex-1 md:w-64 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-bold dark:text-white outline-none"
-              >
+        <div className="animate-in space-y-6">
+          <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow flex flex-col md:flex-row justify-between items-center gap-4 border dark:border-slate-700">
+            <h2 className="font-black text-slate-800 dark:text-white flex items-center gap-2">
+              <FunnelIcon className="w-5 h-5 text-primary-500" /> Vue Interactive
+            </h2>
+            <div className="flex gap-2 w-full md:w-auto">
+              <select value={filterPosteId} onChange={(e) => setFilterPosteId(e.target.value)} className="flex-1 md:w-64 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-bold dark:text-white outline-none">
                 <option value="all">Tous les postes</option>
                 {postes.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
               </select>
               <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-bold dark:text-white outline-none"/>
             </div>
           </div>
-          <StatsCards data={dashboardData} />
+          <StatsCards data={filteredData} />
           <ChartsSection data={computed} selectedPosteId={filterPosteId} />
         </div>
       )}
 
       {activeTab === 'saisie' && (
-        <div className="animate-in space-y-8">
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg flex justify-between items-center border border-slate-100 dark:border-slate-700">
-            <h2 className="text-2xl font-bold dark:text-white">Journée du {new Date(selectedDate).toLocaleDateString('fr-FR')}</h2>
-            {role !== 'admin' && <div className="text-amber-500 text-[10px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-900/20 px-3 py-1 rounded-full border border-amber-100 dark:border-amber-800">Lecture seule</div>}
+        <div className="animate-in space-y-6">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow flex justify-between items-center border dark:border-slate-700">
+            <h2 className="text-xl font-bold dark:text-white">Saisie - {new Date(selectedDate).toLocaleDateString('fr-FR')}</h2>
+            {userRole === 'admin' ? (
+              <button onClick={handleSaveSaisie} disabled={saving} className="bg-primary-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg disabled:opacity-50">
+                {saving ? "Sauvegarde..." : "Enregistrer"}
+              </button>
+            ) : (
+              <span className="text-rose-500 text-[10px] font-black uppercase border border-rose-200 px-3 py-1 rounded-full bg-rose-50">Lecture Seule</span>
+            )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {postes.map(poste => {
               const entry = entries.find(e => e.poste_id === poste.id);
               const comp = computed.find(c => c.poste_id === poste.id);
               return (
-                <div key={poste.id} className={`bg-white dark:bg-slate-800 rounded-3xl shadow-lg border transition-all ${comp?.status === 'alerte' ? 'border-rose-200 shadow-rose-50' : 'border-slate-100 dark:border-slate-700'}`}>
-                  <div className="p-4 border-b dark:border-slate-700 flex justify-between bg-slate-50/50 dark:bg-slate-900/50">
-                    <h3 className="font-bold text-slate-800 dark:text-primary-400 text-xs truncate max-w-[150px]">{poste.nom}</h3>
-                    <span className="text-[10px] text-slate-400 font-bold">Obj: {poste.objectif_dechet_percent}%</span>
+                <div key={poste.id} className="bg-white dark:bg-slate-800 rounded-2xl shadow border dark:border-slate-700 overflow-hidden">
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-3 border-b dark:border-slate-700 flex justify-between">
+                    <span className="text-[10px] font-bold dark:text-primary-400 uppercase truncate max-w-[150px]">{poste.nom}</span>
+                    <span className="text-[10px] font-bold text-slate-400">Obj: {poste.objectif_dechet_percent}%</span>
                   </div>
-                  <div className="p-4 space-y-4">
-                    {[1, 2, 3].map(shift => (
-                      <div key={shift} className="space-y-1.5">
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Shift {shift}</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input 
-                            type="number" step="any"
-                            disabled={role !== 'admin'}
-                            value={entry ? (entry as any)[`s${shift}_dechets`] : ''} 
-                            onChange={(e) => updateEntryValue(poste.id, shift as 1|2|3, 'dechets', e.target.value)} 
-                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-lg px-2 py-2 text-xs font-bold dark:text-white focus:ring-1 focus:ring-primary-500 outline-none disabled:opacity-50" 
-                            placeholder="Déchets kg"
-                          />
-                          <input 
-                            type="number" step="any"
-                            disabled={role !== 'admin'}
-                            value={entry ? (entry as any)[`s${shift}_produit`] : ''} 
-                            onChange={(e) => updateEntryValue(poste.id, shift as 1|2|3, 'produit', e.target.value)} 
-                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-lg px-2 py-2 text-xs font-bold dark:text-white focus:ring-1 focus:ring-primary-500 outline-none disabled:opacity-50" 
-                            placeholder="Prod. kg"
-                          />
+                  <div className="p-3 space-y-3">
+                    {[1, 2, 3].map(s => (
+                      <div key={s} className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-bold text-slate-400 uppercase">Shift {s} Déchets</label>
+                          <input type="number" step="any" disabled={userRole !== 'admin'} value={entry?.[`s${s}_dechets` as keyof DailyEntry] || ''} onChange={(e) => handleUpdateSaisie(poste.id, s as any, 'dechets', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 rounded p-2 text-xs font-bold dark:text-white outline-none focus:ring-1 focus:ring-primary-500" placeholder="0"/>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-bold text-slate-400 uppercase">Shift {s} Prod</label>
+                          <input type="number" step="any" disabled={userRole !== 'admin'} value={entry?.[`s${s}_produit` as keyof DailyEntry] || ''} onChange={(e) => handleUpdateSaisie(poste.id, s as any, 'produit', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 rounded p-2 text-xs font-bold dark:text-white outline-none focus:ring-1 focus:ring-primary-500" placeholder="0"/>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="p-4 bg-slate-50/30 dark:bg-slate-900/30 border-t dark:border-slate-700 flex justify-between items-center">
-                    <div className="flex flex-col">
-                      <span className="text-[7px] text-slate-400 font-bold uppercase">Taux Jour</span>
-                      <span className="font-black text-lg dark:text-white">{comp ? comp.taux_global.toFixed(2) : '0.00'}%</span>
-                    </div>
-                    <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
-                      comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                      comp?.status === 'attention' ? 'bg-amber-50 text-amber-700 border-amber-100' : 
-                      'bg-rose-50 text-rose-700 border-rose-100'
-                    }`}>
-                      {comp?.status || 'conforme'}
-                    </div>
+                  <div className="p-3 bg-slate-50/50 dark:bg-slate-900/20 border-t dark:border-slate-700 flex justify-between items-center">
+                     <span className="text-lg font-black dark:text-white">{comp ? comp.taux_global.toFixed(2) : '0.00'}%</span>
+                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
+                       comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                       comp?.status === 'attention' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                     }`}>{comp?.status || 'conforme'}</span>
                   </div>
                 </div>
               );
             })}
           </div>
-          {role === 'admin' && (
-            <div className="mt-10 flex justify-center pb-12">
-              <button onClick={saveEntries} disabled={saving} className="bg-primary-600 hover:bg-primary-700 text-white px-16 py-4 rounded-2xl font-bold shadow-xl flex items-center gap-3 transition-transform active:scale-95">
-                {saving ? "SAUVEGARDE..." : <>ENREGISTRER LA SAISIE <ChevronRightIcon className="w-5 h-5" /></>}
-              </button>
-            </div>
-          )}
         </div>
       )}
 
-      {activeTab === 'settings' && role === 'admin' && (
-        <div className="animate-in space-y-8">
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 border border-slate-100 dark:border-slate-700">
-            <div>
-              <h2 className="text-3xl font-black dark:text-white tracking-tight">Objectifs de Production</h2>
-              <p className="text-slate-400 text-sm mt-1">Configurez les seuils de tolérance aux déchets par poste.</p>
+      {activeTab === 'history' && (
+        <div className="animate-in space-y-6">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow border dark:border-slate-700 flex justify-between items-center">
+            <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
+              <CalendarDaysIcon className="w-6 h-6 text-primary-500" /> Rapports & Exports
+            </h2>
+            <div className="flex gap-2">
+              <button onClick={() => exportToCSV(computed, `Rapport_${selectedDate}`)} className="bg-slate-100 dark:bg-slate-700 p-2 rounded-lg text-slate-600 dark:text-white">
+                <ArrowDownTrayIcon className="w-5 h-5" />
+              </button>
             </div>
-            <button onClick={saveSettings} disabled={saving} className="w-full md:w-auto bg-primary-600 text-white px-8 py-4 rounded-2xl font-bold shadow-xl flex items-center justify-center gap-2">
-              <CheckCircleIcon className="w-5 h-5" /> Enregistrer tout
-            </button>
           </div>
-          
-          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl overflow-hidden border border-slate-100 dark:border-slate-700">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 dark:bg-slate-900/50">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow overflow-hidden border dark:border-slate-700">
+             <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Désignation Poste</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-48">Seuil (%)</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Statut Actuel</th>
+                    <th className="p-4 font-black uppercase text-slate-400">Poste</th>
+                    <th className="p-4 font-black uppercase text-slate-400">Déchets</th>
+                    <th className="p-4 font-black uppercase text-slate-400">Prod.</th>
+                    <th className="p-4 font-black uppercase text-slate-400">Taux (%)</th>
+                    <th className="p-4 font-black uppercase text-slate-400">Objectif</th>
+                    <th className="p-4 font-black uppercase text-slate-400">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {postes.map((poste) => (
-                    <tr key={poste.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
-                      <td className="px-6 py-5 font-bold text-slate-700 dark:text-slate-200">{poste.nom}</td>
-                      <td className="px-6 py-5">
-                        <div className="relative">
-                          <input 
-                            type="number" step="0.1"
-                            value={poste.objectif_dechet_percent}
-                            onChange={(e) => updatePosteObjective(poste.id, e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 font-black text-primary-600 outline-none focus:ring-2 focus:ring-primary-500"
-                          />
-                          <span className="absolute right-4 top-2 text-slate-300 font-bold">%</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-center">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-black border border-emerald-100">
-                          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div> ACTIF
-                        </span>
+                <tbody className="divide-y dark:divide-slate-700">
+                  {computed.map(c => (
+                    <tr key={c.poste_id} className="dark:text-slate-200">
+                      <td className="p-4 font-bold">{c.poste_nom}</td>
+                      <td className="p-4">{c.total_dechets.toFixed(1)} kg</td>
+                      <td className="p-4">{c.total_produit.toFixed(1)} kg</td>
+                      <td className="p-4 font-black">{c.taux_global.toFixed(2)}%</td>
+                      <td className="p-4 text-slate-400">{c.objectif}%</td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-[9px] font-bold ${
+                          c.status === 'conforme' ? 'text-emerald-500' : c.status === 'attention' ? 'text-amber-500' : 'text-rose-500'
+                        }`}>{c.status}</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+             </table>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'settings' && userRole === 'admin' && (
+        <div className="animate-in space-y-6">
+           <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow border dark:border-slate-700 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-black dark:text-white">Paramètres Objectifs</h2>
+                <p className="text-slate-400 text-sm">Ajustez les seuils (%) par poste.</p>
+              </div>
+              <button onClick={handleSaveSettings} disabled={saving} className="bg-primary-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg">
+                <CheckCircleIcon className="w-5 h-5 inline mr-2" /> {saving ? "Ajustement..." : "Appliquer"}
+              </button>
+           </div>
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {postes.map(p => (
+                <div key={p.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border dark:border-slate-700 shadow flex justify-between items-center">
+                  <span className="font-bold dark:text-white text-sm">{p.nom}</span>
+                  <div className="flex items-center gap-2">
+                    <input type="number" step="0.1" value={p.objectif_dechet_percent} onChange={(e) => setPostes(prev => prev.map(item => item.id === p.id ? { ...item, objectif_dechet_percent: parseFloat(e.target.value) || 0 } : item))} className="w-20 bg-slate-50 dark:bg-slate-900 border dark:border-slate-600 p-2 rounded-lg font-black text-center text-primary-500 outline-none"/>
+                    <span className="text-slate-400 font-bold">%</span>
+                  </div>
+                </div>
+              ))}
+           </div>
         </div>
       )}
     </Layout>

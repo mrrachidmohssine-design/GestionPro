@@ -29,6 +29,7 @@ export const computeEntryData = (entry: DailyEntry, poste: Poste): ComputedEntry
     status = ecart <= 1 ? 'attention' : 'alerte';
   }
 
+  // Fix: The object now includes s1_taux, s2_taux, and s3_taux as defined in ComputedEntry
   return {
     ...entry,
     poste_nom: poste.nom,

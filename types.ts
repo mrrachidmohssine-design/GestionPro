@@ -1,12 +1,6 @@
 
 export type Role = 'admin' | 'viewer';
 
-export interface Profile {
-  id: string;
-  email: string;
-  role: Role;
-}
-
 export interface Poste {
   id: string;
   nom: string;
@@ -24,13 +18,13 @@ export interface DailyEntry {
   s2_produit: number | string;
   s3_dechets: number | string;
   s3_produit: number | string;
-  created_by?: string;
   updated_at?: string;
 }
 
 export interface ComputedEntry extends DailyEntry {
   poste_nom: string;
   objectif: number;
+  // Add specific rates per shift
   s1_taux: number;
   s2_taux: number;
   s3_taux: number;
