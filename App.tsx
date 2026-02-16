@@ -62,6 +62,7 @@ const App: React.FC = () => {
   const [filterPosteId, setFilterPosteId] = useState('all');
   const [entries, setEntries] = useState<DailyEntry[]>([]);
 
+  // Memoized computation of entries
   const computed = useMemo(() => {
     return entries.map(entry => {
       const poste = MOCK_POSTES.find(p => p.id === entry.poste_id);
@@ -119,6 +120,7 @@ const App: React.FC = () => {
   }, [fetchData, user]);
 
   const updateEntry = (posteId: string, shift: 1 | 2 | 3, field: 'dechets' | 'produit', value: string) => {
+    // Optimistic update for immediate responsiveness
     setEntries(prev => prev.map(entry => {
       if (entry.poste_id === posteId) {
         return { ...entry, [`s${shift}_${field}`]: value };
@@ -135,6 +137,7 @@ const App: React.FC = () => {
       entries.forEach((entry) => {
         const docId = `${entry.date}_${entry.poste_id}`;
         const docRef = doc(db, "daily_entries", docId);
+        // Normalize values to numbers before saving
         batch.set(docRef, {
           ...entry,
           s1_dechets: Number(entry.s1_dechets) || 0,
@@ -148,9 +151,9 @@ const App: React.FC = () => {
         });
       });
       await batch.commit();
-      alert("Sauvegardé avec succès !");
+      alert("Données enregistrées avec succès !");
     } catch (err) {
-      alert("Erreur de sauvegarde");
+      alert("Erreur lors de l'enregistrement.");
     } finally {
       setSaving(false);
     }
@@ -158,7 +161,10 @@ const App: React.FC = () => {
 
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-dashboard-light dark:bg-dashboard-dark">
-      <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-white font-bold">Synchronisation...</p>
+      </div>
     </div>
   );
 
