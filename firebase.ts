@@ -1,7 +1,7 @@
 
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp, getApp, getApps, FirebaseApp } from "firebase/app";
+import { getAuth, Auth } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBz7BDsepmA1wX6igR56VuN5XhOl0E93qY",
@@ -12,8 +12,11 @@ const firebaseConfig = {
   appId: "1:102451849433:web:ee036a7603fd4ab12236c8"
 };
 
-// Singleton pattern for Firebase initialization
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Initialisation de l'application (Singleton)
+const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// Exportation des instances de service liées à cette application spécifique
+export const auth: Auth = getAuth(app);
+export const db: Firestore = getFirestore(app);
+
 export default app;

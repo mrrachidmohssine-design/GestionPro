@@ -2,15 +2,20 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Poste, DailyEntry, ComputedEntry, Role } from './types';
 import { computeEntryData } from './utils/calculations';
-import { exportToCSV, exportToJSON } from './utils/export';
+import { exportToCSV } from './utils/export';
 import Layout from './components/Layout';
 import StatsCards from './components/StatsCards';
 import ChartsSection from './components/ChartsSection';
-import { auth, db } from './firebase';
-import { signInWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, getDocs, getDoc, query, where, writeBatch, setDoc } from 'firebase/firestore';
+import { auth, db } from './firebase'; // Import centralisé de l'instance auth
 import { 
-  ChevronRightIcon, 
+  signInWithEmailAndPassword, 
+  signInAnonymously, 
+  signOut, 
+  onAuthStateChanged, 
+  User 
+} from 'firebase/auth'; // Import des méthodes uniquement
+import { collection, doc, getDocs, getDoc, query, where, writeBatch } from 'firebase/firestore';
+import { 
   FunnelIcon,
   CheckCircleIcon,
   ArrowDownTrayIcon,
@@ -53,7 +58,6 @@ const App: React.FC = () => {
   const [postes, setPostes] = useState<Poste[]>(DEFAULT_POSTES);
   const [entries, setEntries] = useState<DailyEntry[]>([]);
 
-  // Real-time computations
   const computed = useMemo(() => {
     return entries.map(entry => {
       const poste = postes.find(p => p.id === entry.poste_id);
@@ -68,7 +72,7 @@ const App: React.FC = () => {
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
-  // Auth Logic: Admin vs Anonymous Viewer
+  // Auth Logic utilisant l'instance partagée 'auth'
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -76,7 +80,6 @@ const App: React.FC = () => {
         if (currentUser.isAnonymous) {
           setUserRole('viewer');
         } else {
-          // Check role in Firestore for non-anonymous users
           const snap = await getDoc(doc(db, "profiles", currentUser.uid));
           setUserRole(snap.exists() ? snap.data().role : 'viewer');
         }
@@ -119,7 +122,6 @@ const App: React.FC = () => {
 
   useEffect(() => { if (user) fetchData(); }, [fetchData, user]);
 
-  // Actions
   const handleUpdateSaisie = (posteId: string, shift: 1|2|3, field: 'dechets'|'produit', val: string) => {
     if (userRole !== 'admin') return;
     setEntries(prev => prev.map(e => e.poste_id === posteId ? { ...e, [`s${shift}_${field}`]: val } : e));

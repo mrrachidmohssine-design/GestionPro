@@ -26,16 +26,18 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ data, selectedPosteId }) 
   // Data for Shift Analysis
   const filteredEntry = selectedPosteId === 'all' 
     ? {
-        s1: data.reduce((acc, curr) => acc + curr.s1_dechets, 0),
-        s2: data.reduce((acc, curr) => acc + curr.s2_dechets, 0),
-        s3: data.reduce((acc, curr) => acc + curr.s3_dechets, 0),
+        // Fix: Explicitly cast string | number to number using Number() for addition
+        s1: data.reduce((acc, curr) => acc + (Number(curr.s1_dechets) || 0), 0),
+        s2: data.reduce((acc, curr) => acc + (Number(curr.s2_dechets) || 0), 0),
+        s3: data.reduce((acc, curr) => acc + (Number(curr.s3_dechets) || 0), 0),
       }
     : (() => {
         const d = data.find(item => item.poste_id === selectedPosteId);
         return {
-          s1: d ? d.s1_dechets : 0,
-          s2: d ? d.s2_dechets : 0,
-          s3: d ? d.s3_dechets : 0,
+          // Fix: Ensure the returned values are numbers
+          s1: d ? (Number(d.s1_dechets) || 0) : 0,
+          s2: d ? (Number(d.s2_dechets) || 0) : 0,
+          s3: d ? (Number(d.s3_dechets) || 0) : 0,
         };
       })();
 
