@@ -148,7 +148,7 @@ const App: React.FC = () => {
         });
       });
       await batch.commit();
-      alert("Sauvegardé !");
+      alert("Sauvegardé avec succès !");
     } catch (err) {
       alert("Erreur de sauvegarde");
     } finally {
@@ -156,23 +156,40 @@ const App: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center text-white font-bold">Chargement...</div>;
+  if (loading) return (
+    <div className="h-screen flex items-center justify-center bg-dashboard-light dark:bg-dashboard-dark">
+      <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
 
   if (!user) return (
     <div className="h-screen bg-dashboard-light flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full">
-        <h1 className="text-2xl font-bold text-center mb-6">EcoTrack Login</h1>
+      <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full animate-in">
+        <div className="flex flex-col items-center mb-8">
+           <div className="w-16 h-16 bg-primary-600 rounded-2xl flex items-center justify-center shadow-lg mb-4">
+              <span className="text-white text-3xl font-bold">E</span>
+           </div>
+           <h1 className="text-2xl font-black text-slate-800 tracking-tight">EcoTrack</h1>
+        </div>
         <form onSubmit={async (e) => {
           e.preventDefault();
           const email = (e.currentTarget.elements.namedItem('email') as HTMLInputElement).value;
           const password = (e.currentTarget.elements.namedItem('password') as HTMLInputElement).value;
           try { await signInWithEmailAndPassword(auth, email, password); } 
-          catch { setAuthError("Identifiants invalides"); }
+          catch { setAuthError("Email ou mot de passe incorrect"); }
         }} className="space-y-4">
-          {authError && <div className="text-red-500 text-xs text-center font-bold">{authError}</div>}
-          <input name="email" type="email" placeholder="Email" required className="w-full border p-4 rounded-xl font-bold"/>
-          <input name="password" type="password" placeholder="Mot de passe" required className="w-full border p-4 rounded-xl font-bold"/>
-          <button type="submit" className="w-full bg-primary-600 text-white p-4 rounded-xl font-bold uppercase">Connexion</button>
+          {authError && <div className="bg-rose-50 text-rose-600 p-3 rounded-xl text-xs text-center font-bold border border-rose-100">{authError}</div>}
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Email</label>
+            <input name="email" type="email" placeholder="votre@email.com" required className="w-full border border-slate-200 bg-slate-50 p-4 rounded-xl font-bold focus:ring-2 focus:ring-primary-500 outline-none transition-all"/>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Mot de passe</label>
+            <input name="password" type="password" placeholder="••••••••" required className="w-full border border-slate-200 bg-slate-50 p-4 rounded-xl font-bold focus:ring-2 focus:ring-primary-500 outline-none transition-all"/>
+          </div>
+          <button type="submit" className="w-full bg-primary-600 hover:bg-primary-700 text-white p-4 rounded-xl font-bold uppercase tracking-widest shadow-lg shadow-primary-200 transition-all mt-4 active:scale-95">
+            Se Connecter
+          </button>
         </form>
       </div>
     </div>
@@ -184,15 +201,23 @@ const App: React.FC = () => {
     <Layout activeTab={activeTab} setActiveTab={setActiveTab} userRole="admin" onLogout={() => signOut(auth)} isDarkMode={isDarkMode} toggleTheme={() => setIsDarkMode(!isDarkMode)}>
       {activeTab === 'dashboard' && (
         <div className="animate-in">
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl mb-8 flex justify-between items-center">
-            <h1 className="text-xl font-bold dark:text-white">Tableau de Bord</h1>
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border rounded-lg px-3 py-1.5 text-sm"/>
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 className="text-xl font-bold dark:text-white flex items-center gap-3">
+               <span className="p-2 bg-primary-50 dark:bg-primary-900/30 rounded-lg">📊</span>
+               Tableau de Bord
+            </h1>
+            <div className="flex items-center gap-3">
+               <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm font-bold dark:text-white outline-none"/>
+               <button onClick={fetchData} className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                  <ClockIcon className="w-5 h-5" />
+               </button>
+            </div>
           </div>
           <StatsCards data={dashboardData} />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             {dashboardData.map((item) => (
-              <div key={item.poste_id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg border dark:border-slate-700">
-                <h3 className="font-bold text-primary-600 dark:text-primary-400 mb-2 truncate">{item.poste_nom}</h3>
+              <div key={item.poste_id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700 hover:shadow-xl transition-shadow group">
+                <h3 className="font-bold text-primary-600 dark:text-primary-400 mb-2 truncate text-sm group-hover:text-primary-500">{item.poste_nom}</h3>
                 <div className="flex justify-between items-end">
                    <span className="text-2xl font-black dark:text-white">{item.taux_global.toFixed(2)}%</span>
                    <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.status === 'conforme' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{item.status}</div>
@@ -205,42 +230,78 @@ const App: React.FC = () => {
       )}
       {activeTab === 'saisie' && (
         <div className="animate-in">
-          <div className="mb-8 bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg flex justify-between items-center">
-            <h2 className="text-2xl font-bold dark:text-white">Saisie de Production</h2>
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border rounded-xl px-4 py-2 text-sm font-bold"/>
+          <div className="mb-8 bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg flex justify-between items-center border border-slate-100 dark:border-slate-700">
+            <h2 className="text-2xl font-bold dark:text-white flex items-center gap-3">
+               <span className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">✍️</span>
+               Saisie de Production
+            </h2>
+            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-bold dark:text-white outline-none"/>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {MOCK_POSTES.map(poste => {
               const entry = entries.find(e => e.poste_id === poste.id);
               const comp = computed.find(c => c.poste_id === poste.id);
               return (
-                <div key={poste.id} className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border dark:border-slate-700 overflow-hidden">
-                  <div className="p-4 border-b dark:border-slate-700 flex justify-between bg-slate-50/50 dark:bg-slate-900/50">
-                    <h3 className="font-bold text-primary-700 dark:text-primary-400 text-xs truncate">{poste.nom}</h3>
-                    <span className="text-[10px] text-slate-400 font-bold">Obj: {poste.objectif_dechet_percent}%</span>
+                <div key={poste.id} className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700 overflow-hidden hover:border-primary-200 transition-colors">
+                  <div className="p-4 border-b border-slate-50 dark:border-slate-700 flex justify-between bg-slate-50/50 dark:bg-slate-900/50 items-center">
+                    <h3 className="font-bold text-slate-800 dark:text-primary-400 text-xs truncate max-w-[140px]">{poste.nom}</h3>
+                    <span className="text-[10px] bg-white dark:bg-slate-700 px-2 py-0.5 rounded-full text-slate-400 font-bold border border-slate-100 dark:border-slate-600">Obj: {poste.objectif_dechet_percent}%</span>
                   </div>
                   <div className="p-4 space-y-4">
                     {[1, 2, 3].map(shift => (
-                      <div key={shift} className="space-y-1">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase">Shift {shift}</p>
+                      <div key={shift} className="space-y-1.5">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Shift {shift}</p>
                         <div className="grid grid-cols-2 gap-2">
-                          <input type="number" step="any" value={entry ? (entry as any)[`s${shift}_dechets`] : ''} onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'dechets', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border rounded-lg px-2 py-1.5 text-xs font-bold dark:text-white" placeholder="Déchets"/>
-                          <input type="number" step="any" value={entry ? (entry as any)[`s${shift}_produit`] : ''} onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'produit', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border rounded-lg px-2 py-1.5 text-xs font-bold dark:text-white" placeholder="Prod"/>
+                          <div className="space-y-1">
+                            <label className="text-[7px] font-bold text-slate-400 uppercase ml-1">Déchets</label>
+                            <input 
+                              type="number" 
+                              step="any" 
+                              value={entry ? (entry as any)[`s${shift}_dechets`] : ''} 
+                              onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'dechets', e.target.value)} 
+                              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold dark:text-white focus:ring-1 focus:ring-primary-400 outline-none" 
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[7px] font-bold text-slate-400 uppercase ml-1">Prod</label>
+                            <input 
+                              type="number" 
+                              step="any" 
+                              value={entry ? (entry as any)[`s${shift}_produit`] : ''} 
+                              onChange={(e) => updateEntry(poste.id, shift as 1|2|3, 'produit', e.target.value)} 
+                              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold dark:text-white focus:ring-1 focus:ring-primary-400 outline-none" 
+                              placeholder="0"
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="p-4 bg-slate-50/30 dark:bg-slate-900/30 border-t dark:border-slate-700 flex justify-between items-center">
-                    <span className="font-black text-lg dark:text-white">{comp ? comp.taux_global.toFixed(2) : '0.00'}%</span>
+                  <div className="p-4 bg-slate-50/30 dark:bg-slate-900/30 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                    <div className="flex flex-col">
+                      <span className="text-[8px] text-slate-400 font-bold uppercase">Taux Jour</span>
+                      <span className="font-black text-lg dark:text-white">{comp ? comp.taux_global.toFixed(2) : '0.00'}%</span>
+                    </div>
                     <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${comp?.status === 'conforme' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>{comp?.status || 'conforme'}</div>
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="mt-10 flex justify-center pb-8">
-            <button onClick={saveToFirebase} disabled={saving} className="bg-primary-600 text-white px-12 py-4 rounded-2xl font-bold shadow-xl">
-              {saving ? 'EN COURS...' : 'VALIDER'}
+          <div className="mt-10 flex justify-center pb-12">
+            <button onClick={saveToFirebase} disabled={saving} className="bg-primary-600 hover:bg-primary-700 text-white px-16 py-4 rounded-2xl font-bold shadow-xl shadow-primary-200 dark:shadow-none transition-all active:scale-95 flex items-center gap-3">
+              {saving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  SAUVEGARDE...
+                </>
+              ) : (
+                <>
+                  VALIDER LA SAISIE
+                  <ChevronRightIcon className="w-5 h-5" />
+                </>
+              )}
             </button>
           </div>
         </div>

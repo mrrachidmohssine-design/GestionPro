@@ -48,11 +48,15 @@
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        /* Style pour les inputs number */
+        /* Style pour les flèches des inputs number (spinners) */
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { 
             opacity: 1 !important;
             display: block !important;
+            cursor: pointer;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
         }
     </style>
 <script type="importmap">
